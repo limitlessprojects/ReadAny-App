@@ -4,9 +4,18 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release (e.g. v1.3.7)"
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -32,6 +41,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Install dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -73,14 +84,15 @@ jobs:
           VITE_FEEDBACK_WORKER_URL: ${{ secrets.FEEDBACK_WORKER_URL }}
         with:
           projectPath: "./packages/app"
-          tagName: ${{ github.ref_name }}
-          releaseName: "ReadAny ${{ github.ref_name }}"
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: "ReadAny ${{ env.RELEASE_TAG }}"
           releaseBody: "See ASSETS to download and install this version."
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 
   build-android:
+    if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -130,6 +142,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   create-updater-json:
+    if: github.event_name == 'push'
     needs: [build, build-android]
     runs-on: ubuntu-latest
 
