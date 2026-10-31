@@ -1,5 +1,11 @@
 # Demo video script (about 2:30)
 
+> **Recorded demo available:** a 2-minute screen-capture walkthrough following
+> this script (landing -> no-key demo page -> real app -> live Cerebras BYOK
+> summary -> Settings -> README) was rendered to `readany-demo.mp4` with
+> captions and title cards. Re-record with your own voice using the script
+> below whenever you want a narrated version.
+
 Record on a laptop browser (web app). If you have no Cerebras credits, skip the Cerebras-key steps (1:20 and the live badge at 1:45) and run the same flow on the free Gemini tier: say plainly that your Cerebras credits ran out, that BYOK is built and works, and show the TTFT/tok/s badge on the Gemini answer. Don't present Gemini numbers as Cerebras numbers.
 
 | Time | Show | Say |
