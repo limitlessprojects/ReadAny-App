@@ -3,10 +3,18 @@ name: Android APK
 # Builds an installable release APK of the Expo/RN app on a GitHub runner
 # (no EAS account needed) and attaches it to the "readany-android" release,
 # so the landing page can offer a direct download:
-#   https://github.com/limitlessprojects/ReadAny/releases/latest/download/ReadAny.apk
+#   https://github.com/limitlessprojects/ReadAny-App/releases/download/readany-android/ReadAny.apk
+# (fixed tag URL on purpose: "releases/latest" jumps to whichever release was
+# created last, e.g. a desktop v* release that has no APK attached)
 #
-# Signing: the Expo template's release build signs with the auto-generated
-# debug keystore — perfectly fine for sideloading a demo APK.
+# Signing: when the APK_KEYSTORE_* secrets exist the release build signs with
+# the project's release keystore (PKCS12, injected post-prebuild by
+# scripts/apply-release-signing.mjs) — installs can then update over each
+# other. Without the secrets it falls back to the template's debug keystore,
+# which is fine for a throwaway sideload but CANNOT update over a properly
+# signed install (Android enforces signature continuity).
+# NOTE: the first release-keystore APK requires a one-time uninstall of any
+# earlier debug-signed install — signatures differ by design.
 
 on:
   workflow_dispatch:
@@ -69,11 +77,43 @@ jobs:
           grep -E "reactNativeArchitectures" gradle.properties
           grep -E "abiFilters" app/build.gradle
 
+      - name: Decode release keystore
+        id: keystore
+        env:
+          APK_KEYSTORE_BASE64: ${{ secrets.APK_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$APK_KEYSTORE_BASE64" ]; then
+            echo "$APK_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "keystore decoded: $(ls -la $RUNNER_TEMP/release.keystore | awk '{print $5}') bytes"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "APK_KEYSTORE_BASE64 not set — building with the debug keystore"
+          fi
+
+      - name: Apply release signing config
+        working-directory: packages/app-expo/android
+        if: steps.keystore.outputs.present == 'true'
+        env:
+          RELEASE_KEYSTORE_FILE: ${{ runner.temp }}/release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.APK_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.APK_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.APK_KEY_PASSWORD }}
+        run: node ../../../scripts/apply-release-signing.mjs app/build.gradle
+
       - name: Gradle assembleRelease
         working-directory: packages/app-expo/android
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
         run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Verify APK signature
+        if: steps.keystore.outputs.present == 'true'
+        run: |
+          APK=$(find packages/app-expo/android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK" | tee sig.txt
+          grep -q "CN=ReadAny Release" sig.txt
 
       - name: Collect APK
         run: |
@@ -110,7 +150,7 @@ jobs:
                 \"tag_name\": \"$TAG\",
                 \"target_commitish\": \"${GITHUB_SHA}\",
                 \"name\": \"ReadAny — latest Android build\",
-                \"body\": \"Installable demo APK (sideload: allow installs from this source). AI works out of the box via the free demo proxy. Built from commit ${GITHUB_SHA}.\",
+                \"body\": \"Installable demo APK (sideload: allow installs from this source). Signed with the project release keystore — if an older build refuses to install over the existing one, uninstall it first (one-time; signatures differ). AI works out of the box via the free demo proxy. Built from commit ${GITHUB_SHA}.\",
                 \"prerelease\": false
               }")
             upload_url=$(echo "$release" | jq -r '.upload_url // empty' | sed 's/{.*}//')
