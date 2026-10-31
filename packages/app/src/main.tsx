@@ -26,7 +26,10 @@ import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { shouldSuppressNativeContextMenu } from "./lib/environment";
 import { TauriPlatformService } from "./lib/platform/tauri-platform-service";
 import { WebPlatformService, webFetch } from "./lib/platform/web-platform-service";
-import { registerDesktopFallbackContentProvider } from "./lib/rag/fallback-content-provider";
+import {
+  registerDesktopFallbackContentProvider,
+  registerWebFallbackContentProvider,
+} from "./lib/rag/fallback-content-provider";
 import { syncLegacyDesktopLibraryRootConfig } from "./lib/storage/desktop-library-root";
 import { TauriVectorDB } from "./lib/tauri-vector-db";
 import { useLibraryStore } from "./stores/library-store";
@@ -81,6 +84,9 @@ if (IS_WEB) {
   // Turnkey demo: point the AI config at Gemini (via /gemini-api proxy) when
   // the user hasn't configured any endpoint yet.
   void seedWebDemoAIEndpointIfUntouched().catch(console.error);
+  // Web build: books live in the OPFS WebVFS — register the web variant so
+  // fallback chapter tools (AI “read this chapter” etc.) work in the browser.
+  registerWebFallbackContentProvider();
 } else {
   const tauriPlatform = new TauriPlatformService();
   tauriPlatform.initSync().catch(console.error);
@@ -176,9 +182,7 @@ const dataRootReady: Promise<void> = IS_WEB
 
 // Ensure i18n is fully initialized before rendering
 // (web also waits for the sql.js schema so store loaders never race it)
-const renderReady: Promise<unknown> = IS_WEB
-  ? Promise.all([i18nReady, dataRootReady])
-  : i18nReady;
+const renderReady: Promise<unknown> = IS_WEB ? Promise.all([i18nReady, dataRootReady]) : i18nReady;
 renderReady.then(() => {
   dataRootReady.catch(console.error);
 
