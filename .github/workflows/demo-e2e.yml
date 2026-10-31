@@ -194,29 +194,28 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_TARGET: https://generativelanguage.googleapis.com
-      - name: No-env key path — proxy must pull the key from the secret gist
-        # Mirrors the exact production situation on hosts without env-var
-        # access (the gist URL is committed; the key is not in the repo).
+      - name: No-env key path — proxy must fail fast with a readable 503
+        # The gist key broker was removed (its URL was committed to this public
+        # repo). With no GEMINI_API_KEY env the proxy now has NO server key:
+        # it must answer 503 with the readable "demo AI is temporarily
+        # unavailable" JSON instead of leaking an opaque upstream 400, and
+        # BYOK credentials must still pass through untouched.
         run: |
           env -u GEMINI_API_KEY node scripts/serve-dist.mjs & echo $! > /tmp/serve2.pid
           sleep 3
           code=$(curl -sS -o /tmp/px2.json -w "%{http_code}" \
             "http://127.0.0.1:8788/gemini-api/v1beta/models?key=proxy")
-          echo "gist-sourced proxied models HTTP $code"
-          jq '{models: (.models | length)}' /tmp/px2.json || head -c 300 /tmp/px2.json
-          test "$code" = 200
-          # and a real chat round-trip through the no-env proxy
-          MODEL=$(cat /tmp/model-name.txt 2>/dev/null || echo gemini-3.5-flash)
-          code=$(curl -sS -o /tmp/px3.json -w "%{http_code}" \
-            "http://127.0.0.1:8788/gemini-api/v1beta/openai/chat/completions" \
-            -H "authorization: Bearer proxy" -H "content-type: application/json" \
-            -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly: OK\"}],\"max_completion_tokens\":2048}")
-          echo "gist-sourced chat HTTP $code"
-          # Daily quota can legitimately be exhausted by earlier steps;
-          # the models call above already proved the gist path authenticates.
-          if [ "$code" = 429 ]; then echo "SOFT PASS: quota exhausted"; else
-          jq -re '.choices[0].message.content' /tmp/px3.json | grep -qi "ok"
-          fi
+          echo "keyless proxied models HTTP $code"
+          head -c 300 /tmp/px2.json
+          test "$code" = 503
+          jq -re '.error.message' /tmp/px2.json | grep -qi "temporarily unavailable"
+          # BYOK still works on the keyless proxy (401/200 from Google proves
+          # the placeholder swap didn't eat a real credential)
+          code=$(curl -sS -o /tmp/px4.json -w "%{http_code}" \
+            "http://127.0.0.1:8788/gemini-api/v1beta/models" \
+            -H "x-goog-api-key: byok-placeholder-key")
+          echo "keyless proxy + BYOK header → upstream HTTP $code (expect 400/401 from Google, not 503)"
+          test "$code" != "503"
           kill "$(cat /tmp/serve2.pid)"
         env:
           GEMINI_API_TARGET: https://generativelanguage.googleapis.com

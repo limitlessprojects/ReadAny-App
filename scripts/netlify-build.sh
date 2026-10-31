@@ -25,6 +25,8 @@ rm -rf dist
 mkdir -p dist
 cp -r packages/app/dist dist/app
 cp landing/index.html landing/qrcode.min.js dist/
+[ -f landing/demo.html ] && cp landing/demo.html dist/demo.html
+[ -f landing/demo-cache.json ] && cp landing/demo-cache.json dist/demo-cache.json
 if [ -f landing/robots.txt ]; then
   cp landing/robots.txt dist/robots.txt
 fi

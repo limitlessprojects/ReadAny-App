@@ -34,24 +34,10 @@ const GEMINI_TARGET = process.env.GEMINI_API_TARGET || "http://127.0.0.1:8787";
 // @ts-expect-error process is a nodejs global
 const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
 
-/** Dev-proxy fallback when GEMINI_API_KEY isn't exported: fetch the key at
- *  startup from the secret gist (same source the Netlify edge function uses).
- *  The gist URL is the secret — the key itself never lives in the repo. */
-async function loadGeminiKey(): Promise<string> {
-  if (GEMINI_KEY) return GEMINI_KEY;
-  const GIST_URL =
-    "https://gist.githubusercontent.com/limitlessprojects/e1c76596284216739ac3f050d02f25f4/raw/";
-  try {
-    const res = await fetch(GIST_URL, { redirect: "follow" });
-    if (!res.ok) return "";
-    const value = (await res.text()).trim();
-    if (value) console.log("[gemini-proxy] key loaded from secret gist (no GEMINI_API_KEY env set)");
-    return value;
-  } catch {
-    console.warn("[gemini-proxy] no GEMINI_API_KEY env and gist fetch failed — key injection disabled");
-    return "";
-  }
-}
+/** The dev proxy injects the server-side key from the GEMINI_API_KEY env var
+ *  (export it before `pnpm dev:web`). There is deliberately no remote fallback:
+ *  an earlier version fetched the key from a "secret" gist at startup, but the
+ *  gist URL was committed here — making it, and the key, public. */
 // @ts-expect-error process is a nodejs global
 const ANTHROPIC_TARGET = process.env.ANTHROPIC_API_TARGET || "https://api.anthropic.com";
 // @ts-expect-error process is a nodejs global
@@ -245,8 +231,8 @@ function readTypeScriptVersion(): string {
 }
 
 // https://vite.dev/config/
-export default defineConfig(async () => {
-  const RESOLVED_GEMINI_KEY = await loadGeminiKey();
+export default defineConfig(() => {
+  const RESOLVED_GEMINI_KEY = GEMINI_KEY;
   return ({
   define: {
     __TAURI_VERSION__: JSON.stringify(readTauriVersion()),

@@ -674,7 +674,10 @@ export async function seedMobileDemoAIEndpointIfUntouched(): Promise<void> {
     endpoints[0].provider === "openai" &&
     !endpoints[0].apiKey &&
     endpoints[0].models.length === 0;
-  if (!isUntouchedDefault) return;
+  if (!isUntouchedDefault) {
+    migrateStaleDemoLiteDefault(store);
+    return;
+  }
 
   store.updateEndpoint("default", {
     name: "Google Gemini (free demo)",
@@ -693,5 +696,30 @@ export async function seedMobileDemoAIEndpointIfUntouched(): Promise<void> {
     modelsFetched: true,
   });
   store.setActiveEndpoint("default");
+  store.setActiveModel("gemini-3.1-flash-lite");
+}
+
+/**
+ * Migration: APKs installed before the lite-model default were seeded with
+ * gemini-3.8-flash, whose free tier is only ~20 requests/day, so the demo AI
+ * dies after a handful of chats. If the endpoint is still the auto-seeded demo
+ * one (points at the demo site's /gemini-api proxy), move it to the lite list.
+ * Matches on baseUrl because the placeholder apiKey loads asynchronously from
+ * secure storage. User-configured endpoints are never touched.
+ */
+function migrateStaleDemoLiteDefault(store: ReturnType<typeof useSettingsStore.getState>): void {
+  const demoEndpoint = store.aiConfig.endpoints.find(
+    (ep) => ep.id === "default" && ep.baseUrl?.includes("netlify.app/gemini-api"),
+  );
+  if (!demoEndpoint || store.aiConfig.activeModel !== "gemini-3.8-flash") return;
+  store.updateEndpoint("default", {
+    models: [
+      "gemini-3.1-flash-lite",
+      "gemini-3.5-flash-lite",
+      "gemini-3.8-flash",
+      "gemini-3.5-flash",
+    ],
+    modelsFetched: true,
+  });
   store.setActiveModel("gemini-3.1-flash-lite");
 }

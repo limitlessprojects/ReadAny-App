@@ -19,40 +19,22 @@
 export type ProxyEnv = { get(key: string): string | null | undefined };
 
 /**
- * Runtime key source for hosts where server env vars are unavailable
- * (e.g. Netlify sites whose owner can't edit Site configuration).
+ * Key custody: the demo key comes from server env vars ONLY.
  *
- * The Gemini key lives in a SECRET gist (unlisted, only reachable with this
- * exact URL — the URL is the secret, not the key). The proxy fetches it at
- * runtime and caches it in isolate memory. Rotating a key = editing the gist
- * file (the revision-less /raw/ URL always serves the latest revision);
- * the cache expires after 10 minutes, so rotation propagates without a
- * redeploy. The canonical copy stays in the GEMINI_API_KEY GitHub secret
- * for CI; when the env var IS set it always wins.
+ * An earlier design fetched the key from a "secret" gist at runtime; the gist
+ * URL shipped in this public repo (and in git history), which made the URL —
+ * and therefore the key — public. That mechanism was removed: set GEMINI_API_KEY
+ * in the deploy host's environment (Netlify → Site configuration → Environment
+ * variables) and redeploy. Rotating a key is now an env-var edit + redeploy.
  */
-const GEMINI_KEY_GIST_URL =
-  "https://gist.githubusercontent.com/limitlessprojects/e1c76596284216739ac3f050d02f25f4/raw/";
+const GEMINI_DEMO_ALLOWED_PATH =
+  /^\/(v1beta\/openai\/(chat\/completions|models(\/[\w.-]+)?)|v1beta\/models(\/[\w.-]+(:(streamGenerateContent|generateContent))?)?)\/?$/;
 
-const KEY_CACHE = new Map<string, { value: string; expires: number }>();
-const KEY_TTL_MS = 10 * 60 * 1000;
-
-async function resolveServerKey(env: ProxyEnv, keyEnv: string | undefined, gistUrl?: string): Promise<string> {
-  if (keyEnv) {
-    const fromEnv = env.get(keyEnv);
-    if (fromEnv) return fromEnv;
-  }
-  if (!gistUrl) return "";
-  const cached = KEY_CACHE.get(gistUrl);
-  if (cached && cached.expires > Date.now()) return cached.value;
-  try {
-    const res = await fetch(gistUrl, { redirect: "follow" });
-    if (!res.ok) return cached?.value ?? "";
-    const value = (await res.text()).trim();
-    if (value) KEY_CACHE.set(gistUrl, { value, expires: Date.now() + KEY_TTL_MS });
-    return value;
-  } catch {
-    return cached?.value ?? "";
-  }
+/** Env-var-only key resolution (no network, no cache — cannot silently
+ *  fall back to a stale leaked key). */
+function resolveServerKey(env: ProxyEnv, keyEnv: string | undefined): string {
+  if (!keyEnv) return "";
+  return env.get(keyEnv) || "";
 }
 
 interface TargetConfig {
@@ -157,6 +139,30 @@ export async function handleProviderProxy(req: Request, env: ProxyEnv): Promise<
   let upstreamPath = url.pathname.slice(prefix.length) || "/";
   const query = new URLSearchParams(url.search);
 
+  // Diagnostic: GET /gemini-api/__health → which key source works and whether
+  // Google accepts it. Never returns the key itself.
+  if (PATH_PREFIXES[prefix] === "gemini" && upstreamPath === "/__health") {
+    const key = resolveServerKey(env, "GEMINI_API_KEY");
+    let upstreamStatus: number | string = "skipped (no key)";
+    if (key) {
+      try {
+        const r = await fetch(`${target.host.replace(/\/$/, "")}/v1beta/models?pageSize=1`, {
+          headers: { "x-goog-api-key": key },
+          signal: AbortSignal.timeout(5000),
+        });
+        upstreamStatus = r.status;
+      } catch (err) {
+        upstreamStatus = `fetch failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }
+    return new Response(
+      JSON.stringify({ keyLoaded: Boolean(key), googleModelsStatus: upstreamStatus }),
+      {
+        headers: { "content-type": "application/json", "cache-control": "no-store" },
+      },
+    );
+  }
+
   // OpenAI-compat compatibility shim: clients that speak the standard
   // /v1/chat/completions dialect (e.g. the Android APK, OpenAI SDKs pointed
   // at https://<site>/gemini-api) get transparently mapped onto Gemini's
@@ -169,24 +175,11 @@ export async function handleProviderProxy(req: Request, env: ProxyEnv): Promise<
   // Settings "test connection" builds native Gemini URLs with ?key=<key>;
   // swap the placeholder for the server key there too.
   //
-  // Gemini is GIST-FIRST: a stale or placeholder GEMINI_API_KEY sitting in
-  // the deploy host's env must never shadow the rotating demo key, and if
-  // the gist fetch ever fails the env var is still there as a fallback.
-  // Non-gemini targets keep the plain env-var resolution.
-  let serverKey = "";
-  let keySource = "none";
-  if (PATH_PREFIXES[prefix] === "gemini" && GEMINI_KEY_GIST_URL) {
-    serverKey = await resolveServerKey(env, undefined, GEMINI_KEY_GIST_URL);
-    if (serverKey) {
-      keySource = "gist";
-    } else if (target.keyEnv) {
-      serverKey = env.get(target.keyEnv) || "";
-      if (serverKey) keySource = "env";
-    }
-  } else {
-    serverKey = await resolveServerKey(env, target.keyEnv);
-    if (serverKey) keySource = "env";
-  }
+  // ENV-FIRST: the demo key comes from the deploy host's env (GEMINI_API_KEY)
+  // or from the client's own BYOK credential. There is no third source — the
+  // old runtime gist broker leaked its URL in this public repo and was removed.
+  const serverKey = resolveServerKey(env, target.keyEnv);
+  const keySource = serverKey ? "env" : "none";
   if (isProxyPlaceholder(query.get("key"))) {
     if (serverKey) query.set("key", serverKey);
     else query.delete("key");
@@ -243,11 +236,34 @@ export async function handleProviderProxy(req: Request, env: ProxyEnv): Promise<
   // literal "proxy" placeholder (or an empty credential) to Google only
   // produces an opaque 400 that looks like a broken BYOK key.
   const realQueryKey = query.has("key") && !isProxyPlaceholder(query.get("key"));
-  if (!serverKey && !clientRealAuth && !clientRealGoog && !realQueryKey && PATH_PREFIXES[prefix] === "gemini") {
+  if (
+    !serverKey &&
+    !clientRealAuth &&
+    !clientRealGoog &&
+    !realQueryKey &&
+    PATH_PREFIXES[prefix] === "gemini"
+  ) {
     return jsonError(
       "demo AI is temporarily unavailable: the server demo key could not be loaded. BYOK still works — add your own key in Settings → AI.",
       503,
     );
+  }
+  // The shared demo key may only reach chat, model-list and generateContent
+  // (TTS) endpoints. Without this, anyone could spend it on file uploads,
+  // cached contents, tuning or batch jobs through this proxy.
+  if (
+    PATH_PREFIXES[prefix] === "gemini" &&
+    serverKey &&
+    !clientRealAuth &&
+    !clientRealGoog &&
+    !realQueryKey
+  ) {
+    if (!GEMINI_DEMO_ALLOWED_PATH.test(upstreamPath)) {
+      return jsonError(
+        `demo AI: ${upstreamPath} is not available on the shared demo key (BYOK has no such limit)`,
+        403,
+      );
+    }
   }
   if (target.extraHeaders) {
     for (const [name, value] of Object.entries(target.extraHeaders)) {
@@ -283,12 +299,29 @@ export async function handleProviderProxy(req: Request, env: ProxyEnv): Promise<
     const value = upstreamRes.headers.get(name);
     if (value !== null) resHeaders.set(name, value);
   }
-  // Diagnostic: which credential the proxy attached ("gist" | "env" | "none").
+  // Diagnostic: which credential the proxy attached ("env" | "none").
   resHeaders.set("x-demo-key-source", keySource);
   // SSE/text streams must not be buffered by the CDN.
   const contentType = upstreamRes.headers.get("content-type") || "";
   if (contentType.includes("text/event-stream")) {
     resHeaders.set("x-accel-buffering", "no");
+  }
+  // Error responses with an empty body make clients print "503 status code
+  // (no body)". Give them something readable instead.
+  if (upstreamRes.status >= 400) {
+    const errText = await upstreamRes.text();
+    if (!errText.trim()) {
+      resHeaders.set("content-type", "application/json");
+      return new Response(
+        JSON.stringify({
+          error: {
+            message: `${PATH_PREFIXES[prefix]} upstream returned HTTP ${upstreamRes.status} with an empty body (usually overload or quota) — retry in a moment, or add your own key in Settings → AI.`,
+          },
+        }),
+        { status: upstreamRes.status, headers: resHeaders },
+      );
+    }
+    return new Response(errText, { status: upstreamRes.status, headers: resHeaders });
   }
   return new Response(upstreamRes.body, { status: upstreamRes.status, headers: resHeaders });
 }

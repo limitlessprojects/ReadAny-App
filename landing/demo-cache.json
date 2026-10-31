@@ -1,0 +1,50 @@
+{
+  "source": "cerebras",
+  "model": "gpt-oss-120b",
+  "generatedAt": "2026-10-31T13:41:12.361Z",
+  "passage": {
+    "title": "How honeybees share directions (sample text written for this demo)",
+    "text": "When a forager bee finds a good patch of flowers, she returns to the hive and performs a waggle dance on the vertical comb. She walks a short straight line while shaking her body from side to side, then loops back and repeats. The angle of the straight run, measured against straight up, matches the angle between the sun and the flowers. The longer she waggles, the farther away the food is. Other bees crowd around, follow the dance, and then fly out to find the patch themselves. Karl von Frisch won a Nobel Prize in 1973 for decoding this behavior."
+  },
+  "items": [
+    {
+      "id": "summary",
+      "label": "Summarize this passage",
+      "question": "Summarize this passage in three sentences.",
+      "answer": "A forager bee that discovers a rich flower patch returns to the hive and performs a waggle dance on the vertical comb, walking a short straight line while shaking side‑to‑side, then looping back to repeat. The angle of the straight run relative to straight up indicates the direction of the flowers relative to the sun, and the duration of the waggle signals the distance to the food. Other bees observe the dance, follow it, and then fly out to locate the patch; Karl von Frisch earned a 1973 Nobel Prize for decoding this behavior.",
+      "metrics": {
+        "ttftMs": 776,
+        "totalMs": 831,
+        "tokens": 144,
+        "tokensExact": true,
+        "tokPerSec": 2650
+      }
+    },
+    {
+      "id": "distance",
+      "label": "How do bees signal distance?",
+      "question": "How does the dance tell other bees how far the flowers are?",
+      "answer": "The dance’s waggle phase lasts longer when the food source is farther away—so a longer waggle signals a greater distance.",
+      "metrics": {
+        "ttftMs": 690,
+        "totalMs": 710,
+        "tokens": 89,
+        "tokensExact": true,
+        "tokPerSec": 4373
+      }
+    },
+    {
+      "id": "swahili",
+      "label": "Jibu kwa Kiswahili",
+      "question": "Eleza kwa Kiswahili: nyuki wanajuaje mwelekeo wa maua?",
+      "answer": "Nyuki hubeba mwelekeo wa maua kwa kutumia “waggle dance”. Katika dansi yao, pembe ya mstari wa moja kwa moja inahesabiwa kwa kuangalia upinde wa nyumbani (kuelekea juu). Pembe hii inalingana na pembe kati ya jua na maua; hivyo, kulingana na pembe ya dansi, nyuki wengine wanaelewa mwelekeo wa maua.",
+      "metrics": {
+        "ttftMs": 664,
+        "totalMs": 754,
+        "tokens": 227,
+        "tokensExact": true,
+        "tokPerSec": 2534
+      }
+    }
+  ]
+}

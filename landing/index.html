@@ -238,6 +238,12 @@
       </div>
     </section>
 
+    <section class="block wrap" id="cerebras">
+      <h2>Built with Cerebras</h2>
+      <p>ReadAny's web demo was built for the Cerebras hackathon. Cerebras Llama 3.3 (<code>llama-3.3-70b</code>) drove the first provider integration and API testing; <strong>gpt-oss-120b</strong> generated the recorded demo answers and the first draft of the proxy regression tests. Measured through the production edge proxy: <strong>664–776 ms to first token, 2,534–4,373 tok/s</strong>. The app has a built-in Cerebras provider, so you can paste your own Cerebras key in Settings → AI, and every answer shows a live time-to-first-token and tokens-per-second badge so you can see the speed for yourself.</p>
+      <p style="margin-top:14px"><a class="btn btn-primary" href="/demo.html">Watch a no-key demo</a> <a class="btn btn-ghost" href="https://github.com/limitlessprojects/ReadAny-App#built-with-cerebras">Details on GitHub</a></p>
+    </section>
+
     <section class="block wrap" id="download">
       <div class="sec-head">
         <h2>Get ReadAny</h2>
@@ -248,7 +254,7 @@
           <span class="tag">Android</span>
           <h3>Install the APK</h3>
           <p>A real Android app — download, tap to install (allow "install from this source"), done. AI works out of the box, no key needed.</p>
-          <a class="btn btn-primary" id="apk-btn" href="https://github.com/limitlessprojects/ReadAny-App/releases/latest/download/ReadAny.apk">Download APK ↓</a>
+          <a class="btn btn-primary" id="apk-btn" href="https://github.com/limitlessprojects/ReadAny-App/releases/download/readany-android/ReadAny.apk">Download APK ↓</a>
           <p class="apk-status" id="apk-status" style="font-size:12px;opacity:.7;margin-top:6px"></p>
         </div>
         <div class="dl">
@@ -299,7 +305,7 @@
         var btn = document.getElementById("apk-btn");
         var status = document.getElementById("apk-status");
         if (!btn || !status) return;
-        fetch("https://api.github.com/repos/limitlessprojects/ReadAny-App/releases/latest", { cache: "no-store" })
+        fetch("https://api.github.com/repos/limitlessprojects/ReadAny-App/releases/tags/readany-android", { cache: "no-store" })
           .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
           .then(function (rel) {
             var asset = (rel.assets || []).find(function (a) { return a.name === "ReadAny.apk"; });
@@ -308,8 +314,9 @@
               " · " + Math.round(asset.size / 1048576) + " MB · updated " +
               new Date(asset.updated_at).toLocaleDateString();
           })
-          .catch(function () {
-            status.textContent = "APK is building — check back in a few minutes";
+          .catch(function (code) {
+            // 403 = GitHub's anonymous API rate limit, not a missing APK.
+            status.textContent = code === 404 ? "APK is building — check back in a few minutes" : "";
           });
       })();
     </script>

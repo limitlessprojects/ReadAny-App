@@ -38,6 +38,27 @@
 
 > 🏁 **`cerebras-demo` branch**: the full reader running in a plain browser (no Tauri) with one-click **Gemini (free tier)** / **Cerebras** providers, a live **TTFT/tok·s streaming badge**, a resilient **Edge ↔ Google ↔ System TTS chain** with Swahili auto-voices, chat **voice dictation**, and a full-screen chat sheet on phone-width viewports. See [DEMO.md](./DEMO.md) for the 2-minute runbook.
 
+## Built with Cerebras
+
+**What this submission is:** a fork of the open-source [ReadAny](https://github.com/codedogQBY/ReadAny) reader (GPL-3.0) that I turned into a web and Android demo: chat with your books, read aloud in English and Swahili, free Gemini tier out of the box, and Cerebras as a bring-your-own-key provider. Try it: https://cerebras-demo1.netlify.app (no-key walkthrough: [/demo.html](https://cerebras-demo1.netlify.app/demo.html)).
+
+**Which Cerebras model, and for what**
+
+| Where | Model | What it did |
+|---|---|---|
+| Building the integration | Cerebras Llama 3.3 (`llama-3.3-70b`) | First provider integration and initial API testing: drafted the OpenAI-compat shim against Gemini's `/v1beta/openai/*` surface and exercised the streaming path while the Cerebras provider was wired up |
+| Recorded demo answers ([/demo.html](https://cerebras-demo1.netlify.app/demo.html)) | `gpt-oss-120b` | All three saved answers (English summary, follow-up, Swahili) were generated live and their streaming metrics recorded — **664–776 ms to first token, 2,534–4,373 tok/s**, measured end-to-end through the production edge proxy with [scripts/generate-demo-cache.mjs](scripts/generate-demo-cache.mjs). The whole run (3 streaming calls) took ~2.3 s of model time |
+| Edge-proxy regression tests | `gpt-oss-120b` | Drafted the first pass of the proxy unit test (key-custody + allowed-path guard), reviewed and extended by hand — what would have been an hour of writing test scaffolding from scratch was a few minutes of review, because Cerebras returned the draft at ~2,500 tok/s |
+| In the app (BYOK) | Any model your Cerebras key can use, chosen in Settings → AI | Chat answers over your book, with a live TTFT and tokens/sec badge |
+
+Honesty note: the recorded metrics above are end-to-end (client → edge proxy → Cerebras), not just model time — the model itself is faster than the badge suggests.
+
+**What I added on top of upstream** (details in [DEMO.md](./DEMO.md)): browser platform layer, same-origin provider proxies (Gemini, Cerebras, Anthropic, OpenAI), BYOK key handling, streaming speed instrumentation (`packages/core/src/ai/stream-metrics.ts`), resilient TTS chain with Swahili voices, phone-first layouts, Android APK build, and the no-key demo page.
+
+**No key? Two ways to see it work:** open [/demo.html](https://cerebras-demo1.netlify.app/demo.html) for the recorded end-to-end walkthrough (answers streamed exactly as Cerebras produced them, with the measured badge), or open the app and use the built-in free Gemini tier. To use Cerebras: Settings → AI → Add Endpoint → Cerebras → paste your key.
+
+**Known issue:** on the Android APK the free demo AI can return a 503 when the shared free-tier key is rate-limited, overloaded, or not yet configured on the deploy host (the demo key now comes from the `GEMINI_API_KEY` env var only). The web app works, and BYOK works in both.
+
 ## AI-Native Reading Workflow
 
 - **Chat with your library** - Ask questions about the current book or selected passages, with answers grounded in your reading context

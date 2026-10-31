@@ -7,11 +7,11 @@
 #   /cerebras-api→ edge function → api.cerebras.ai
 #   ...          → BYOK passthroughs (anthropic, openai) + Google TTS
 #
-# Required env var: NONE — the Gemini key is fetched at runtime by the edge
-# function from a secret gist (URL is committed; key never is). If you set
-# GEMINI_API_KEY here it takes precedence over the gist.
+# Required env var: GEMINI_API_KEY (Sensitive) — the edge function resolves the
+# demo key from the deploy environment ONLY. The old runtime gist broker was
+# removed: its URL was committed to this public repo, which made it (and the
+# key) public. Rotation = update the env var + redeploy.
 # Optional:
-#   GEMINI_API_KEY   — override the gist-sourced key (Sensitive)
 #   CEREBRAS_API_KEY — demo server-side Cerebras key (BYOK works without it)
 #   GEMINI_API_TARGET / CEREBRAS_API_TARGET / ANTHROPIC_API_TARGET /
 #   OPENAI_API_TARGET — upstream overrides (mock servers, mirrors)
