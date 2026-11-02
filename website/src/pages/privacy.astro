@@ -1,0 +1,225 @@
+---
+import { defaultLang, useTranslations } from "../i18n/utils";
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+
+const lang = defaultLang;
+const t = useTranslations(lang);
+const lastUpdated = "May 30, 2026";
+---
+
+<Layout
+  title="Privacy Policy - ReadAny"
+  description="ReadAny privacy policy, including local-first storage, WebDAV sync, third-party AI providers, text-to-speech, diagnostics, and user rights."
+>
+  <Header lang={lang} t={t} />
+
+  <main class="legal-main">
+    <section class="legal-hero">
+      <p class="eyebrow">ReadAny</p>
+      <h1>Privacy Policy</h1>
+      <p class="lede">
+        ReadAny is designed as a local-first reader. Your books, notes, highlights, bookmarks, reading progress,
+        and settings stay on your device by default.
+      </p>
+      <p class="updated">Last updated: {lastUpdated}</p>
+    </section>
+
+    <article class="legal-content">
+      <section>
+        <h2>1. Information We Process</h2>
+        <p>
+          ReadAny may process the books you import, reading progress, highlights, annotations, bookmarks, notes,
+          app settings, reading statistics, and optional AI or sync configuration you choose to set up.
+        </p>
+        <p>
+          These items are primarily stored locally on your device. We do not operate a default cloud library that
+          automatically uploads your reading content to ReadAny servers.
+        </p>
+      </section>
+
+      <section>
+        <h2>2. Local Storage</h2>
+        <p>
+          Imported books and reading data are stored on your device so the app can provide offline reading,
+          annotation, search, statistics, and playback features. Deleting the app or clearing local app data may
+          remove this locally stored content, depending on your platform.
+        </p>
+      </section>
+
+      <section>
+        <h2>3. Sync Services You Configure</h2>
+        <p>
+          If you enable WebDAV, S3, LAN sync, or another supported sync option, ReadAny sends the selected library
+          data to the service and account you configure. We do not control those third-party or self-hosted services.
+          Their privacy practices are governed by their own policies and your own server settings.
+        </p>
+      </section>
+
+      <section>
+        <h2>4. AI, Translation, Embeddings, and TTS Providers</h2>
+        <p>
+          ReadAny lets you configure external AI, translation, embedding, and text-to-speech providers. When you use
+          those features, selected text, prompts, book context, generated content, or audio requests may be sent to
+          the provider you choose, such as an OpenAI-compatible endpoint, Gemini, Claude, Ollama, DeepSeek, Edge TTS,
+          or another configured service.
+        </p>
+        <p>
+          You are responsible for reviewing the privacy policy and data handling terms of each provider you connect.
+          You can avoid sending content to external providers by not enabling those integrations.
+        </p>
+      </section>
+
+      <section>
+        <h2>5. Diagnostics and Support</h2>
+        <p>
+          ReadAny does not require you to create an account for local reading. If you contact us through GitHub
+          Issues, email, community channels, or other support paths, we may receive the information you decide to
+          share, such as logs, screenshots, device information, or a description of the problem. Please avoid sending
+          private book content unless it is necessary for support.
+        </p>
+      </section>
+
+      <section>
+        <h2>6. Purchases and App Stores</h2>
+        <p>
+          If you install or purchase ReadAny through an app store, purchase records, refunds, taxes, billing, and
+          account details are handled by the relevant platform, such as Apple App Store or Google Play. We receive
+          only the information those platforms make available to developers.
+        </p>
+      </section>
+
+      <section>
+        <h2>7. Children’s Privacy</h2>
+        <p>
+          ReadAny is a general productivity and reading tool. We do not knowingly collect personal information from
+          children. If you believe a child has provided personal information to us through a support channel, please
+          contact us so we can handle the request appropriately.
+        </p>
+      </section>
+
+      <section>
+        <h2>8. Your Choices</h2>
+        <p>
+          You can manage your data by deleting books, notes, highlights, sync settings, AI provider settings, or local
+          app data from within the app or through your operating system. You can also disable third-party integrations
+          at any time by removing their configuration.
+        </p>
+      </section>
+
+      <section>
+        <h2>9. Changes to This Policy</h2>
+        <p>
+          We may update this policy as ReadAny evolves, including when new cloud, sync, AI, or subscription services
+          become available. The latest version will be posted on this page with an updated date.
+        </p>
+      </section>
+
+      <section>
+        <h2>10. Contact</h2>
+        <p>
+          For privacy questions, open an issue at
+          <a href="https://github.com/codedogQBY/ReadAny/issues" target="_blank" rel="noopener noreferrer">
+            github.com/codedogQBY/ReadAny/issues
+          </a>.
+        </p>
+      </section>
+    </article>
+  </main>
+
+  <Footer t={t} />
+</Layout>
+
+<style>
+  .legal-main {
+    min-height: 100vh;
+    padding-top: 3.5rem;
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .legal-hero {
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+    padding: 5rem 1.5rem 3.5rem;
+  }
+
+  .legal-hero,
+  .legal-content {
+    margin: 0 auto;
+    max-width: 800px;
+  }
+
+  .eyebrow {
+    color: var(--muted-foreground);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    color: var(--foreground);
+    font-size: clamp(2.25rem, 6vw, 4.5rem);
+    font-weight: 750;
+    letter-spacing: 0;
+    line-height: 1.02;
+    margin: 0;
+  }
+
+  .lede {
+    color: var(--muted-foreground);
+    font-size: 1.15rem;
+    line-height: 1.8;
+    margin: 1.4rem 0 0;
+    max-width: 720px;
+  }
+
+  .updated {
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+    margin-top: 1.25rem;
+  }
+
+  .legal-content {
+    padding: 3.5rem 1.5rem 5rem;
+  }
+
+  .legal-content section + section {
+    margin-top: 2.4rem;
+  }
+
+  h2 {
+    color: var(--foreground);
+    font-size: 1.35rem;
+    letter-spacing: 0;
+    line-height: 1.25;
+    margin: 0 0 0.85rem;
+  }
+
+  p {
+    color: var(--muted-foreground);
+    font-size: 1rem;
+    line-height: 1.8;
+    margin: 0;
+  }
+
+  p + p {
+    margin-top: 0.85rem;
+  }
+
+  a {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
+  @media (max-width: 640px) {
+    .legal-hero {
+      padding-top: 4rem;
+    }
+  }
+</style>

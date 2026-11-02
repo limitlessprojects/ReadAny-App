@@ -1,0 +1,350 @@
+---
+import { defaultLang, useTranslations } from "../i18n/utils";
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+
+const lang = defaultLang;
+const t = useTranslations(lang);
+
+const categories = [
+  {
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
+    title: "Getting Started",
+    items: [
+      { label: "Quick Start", href: "/ReadAny/support/getting-started/" },
+      { label: "Installation Guide", href: "/ReadAny/support/installation/" },
+      { label: "Import Books", href: "/ReadAny/support/import-books/" },
+    ],
+  },
+  {
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+    title: "Reading & Notes",
+    items: [
+      { label: "Reading Basics", href: "/ReadAny/support/reading/basics/" },
+      { label: "Annotations & Highlights", href: "/ReadAny/support/reading/annotations/" },
+      { label: "Eye-Care Themes", href: "/ReadAny/support/reading/themes/" },
+      { label: "Text-to-Speech (TTS)", href: "/ReadAny/support/reading/tts/" },
+    ],
+  },
+  {
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+    title: "AI Features",
+    items: [
+      { label: "AI Chat Analysis", href: "/ReadAny/support/ai/chat/" },
+      { label: "Semantic Search", href: "/ReadAny/support/ai/semantic-search/" },
+      { label: "Configure AI Providers", href: "/ReadAny/support/ai/providers/" },
+    ],
+  },
+  {
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>`,
+    title: "Sync & Export",
+    items: [
+      { label: "WebDAV Sync", href: "/ReadAny/support/sync/webdav/" },
+      { label: "Export Notes", href: "/ReadAny/support/sync/export-notes/" },
+    ],
+  },
+  {
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    title: "FAQ",
+    items: [
+      { label: "Frequently Asked Questions", href: "/ReadAny/support/faq/" },
+      { label: "Report a Bug / Suggestion", href: "https://github.com/codedogQBY/ReadAny/issues" },
+    ],
+  },
+];
+---
+
+<Layout title="Help Center - ReadAny" description="ReadAny Help Center. Find the answers you need quickly.">
+  <Header lang={lang} t={t} />
+
+  <main class="support-main">
+    <!-- Hero Search Section -->
+    <section class="support-hero">
+      <div class="support-hero-inner">
+        <h1>Help Center</h1>
+        <p class="support-hero-sub">How can we help you?</p>
+        <div class="support-search-bar">
+          <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            id="support-search-input"
+            type="text"
+            placeholder="Search docs, e.g. &quot;import books&quot;..."
+            autocomplete="off"
+          />
+          <button class="search-btn">Search</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Category Grid -->
+    <section class="support-categories">
+      <div class="support-categories-inner">
+        <h2 class="categories-label">Categories</h2>
+        <div class="categories-grid">
+          {categories.map(cat => (
+            <div class="cat-card">
+              <div class="cat-card-header">
+                <span class="cat-icon" set:html={cat.icon} />
+                <h3>{cat.title}</h3>
+              </div>
+              <ul class="cat-links">
+                {cat.items.map(item => (
+                  <li>
+                    <a href={item.href}>{item.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <Footer t={t} />
+</Layout>
+
+<script is:inline>
+  // Search bar logic - redirect to docs and trigger search modal
+  function initSupportSearch() {
+    const searchInput = document.getElementById('support-search-input');
+    const searchBtn = document.querySelector('.search-btn');
+
+    function performSearch() {
+      const query = searchInput?.value?.trim();
+      // Store search query in sessionStorage to be picked up by the docs page
+      if (query) {
+        sessionStorage.setItem('pendingSearch', query);
+      }
+      // Redirect to getting started page
+      window.location.href = '/ReadAny/support/getting-started/';
+    }
+
+    searchInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        performSearch();
+      }
+    });
+    searchBtn?.addEventListener('click', performSearch);
+  }
+
+  // Initialize on page load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSupportSearch);
+  } else {
+    initSupportSearch();
+  }
+</script>
+
+<style>
+  /* ── Layout ── */
+  .support-main {
+    min-height: 100vh;
+    padding-top: 3.5rem; /* offset sticky header */
+    background: var(--background);
+    color: var(--foreground);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* ── Hero ── */
+  .support-hero {
+    padding: 5rem 1.5rem 4rem;
+    text-align: center;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .support-hero-inner {
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  .support-hero h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    margin-bottom: 0.75rem;
+    color: var(--foreground);
+  }
+
+  .support-hero-sub {
+    font-size: 1.125rem;
+    color: var(--muted-foreground);
+    margin-bottom: 2.5rem;
+  }
+
+  /* ── Search bar ── */
+  .support-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    padding: 0.5rem 0.5rem 0.5rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .support-search-bar:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+  }
+
+  .search-icon {
+    color: var(--muted-foreground);
+    flex-shrink: 0;
+  }
+
+  .support-search-bar input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 1rem;
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    min-width: 0;
+  }
+
+  .support-search-bar input::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  .search-btn {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border: none;
+    border-radius: 9999px;
+    padding: 0.55rem 1.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+    font-family: var(--font-sans);
+  }
+
+  .search-btn:hover {
+    opacity: 0.87;
+  }
+
+  /* ── Categories ── */
+  .support-categories {
+    padding: 4rem 1.5rem;
+  }
+
+  .support-categories-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .categories-label {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--foreground);
+    margin-bottom: 2rem;
+    letter-spacing: -0.02em;
+  }
+
+  .categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
+  }
+
+  /* ── Category Card ── */
+  .cat-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    background: var(--card);
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  }
+
+  .cat-card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+  }
+
+  .cat-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .cat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .cat-card h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--foreground);
+  }
+
+  .cat-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .cat-links li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .cat-links li::before {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--muted-foreground);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .cat-links a {
+    font-size: 0.9rem;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    transition: color 0.15s;
+    line-height: 1.4;
+  }
+
+  .cat-links a:hover {
+    color: var(--primary);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .support-hero h1 {
+      font-size: 1.75rem;
+    }
+    .support-hero {
+      padding: 3.5rem 1rem 3rem;
+    }
+    .categories-grid {
+      grid-template-columns: 1fr;
+    }
+    .support-categories {
+      padding: 2.5rem 1rem;
+    }
+  }
+</style>

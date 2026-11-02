@@ -1,0 +1,131 @@
+---
+interface Props {
+  t: (key: string) => string;
+}
+
+const { t } = Astro.props;
+
+const features = [
+  {
+    titleKey: "featureShowcase.ai.title",
+    descKey: "featureShowcase.ai.desc",
+    iconPath: "M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z",
+    desktopImage: "/ReadAny/images/ai-chat-desktop.png",
+    mobileImage: "/ReadAny/images/ai-chat-mobile.png",
+  },
+  {
+    titleKey: "featureShowcase.annotations.title",
+    descKey: "featureShowcase.annotations.desc",
+    iconPath: "M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6.18 17.34a1.5 1.5 0 01-1.5-1.5l.14-2.505a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0116.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H11",
+    desktopImage: "/ReadAny/images/notes-desktop.png",
+    mobileImage: "/ReadAny/images/notes-mobile.png",
+  },
+  {
+    titleKey: "featureShowcase.tts.title",
+    descKey: "featureShowcase.tts.desc",
+    iconPath: "M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z",
+    desktopImage: "/ReadAny/images/tts-desktop.png",
+    mobileImage: "/ReadAny/images/tts-mobile.png",
+  },
+  {
+    titleKey: "featureShowcase.stats.title",
+    descKey: "featureShowcase.stats.desc",
+    iconPath: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z",
+    desktopImage: "/ReadAny/images/stats-desktop.png",
+    mobileImage: "/ReadAny/images/stats-mobile.png",
+  },
+  {
+    titleKey: "featureShowcase.sync.title",
+    descKey: "featureShowcase.sync.desc",
+    iconPath: "M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5",
+    desktopImage: "/ReadAny/images/sync-desktop.png",
+    mobileImage: "/ReadAny/images/sync-mobile.png",
+  }
+];
+---
+
+<section id="features" class="py-24">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="text-center max-w-2xl mx-auto mb-16">
+      <h2 class="text-3xl font-semibold tracking-tight">
+        {t("featureShowcase.title")}
+      </h2>
+      <p class="mt-4 text-muted-foreground">
+        {t("featureShowcase.subtitle")}
+      </p>
+    </div>
+
+    <div class="space-y-20">
+      {features.map((feature) => (
+        <div class="space-y-8">
+          <div class="max-w-2xl">
+            <div class="flex items-center gap-4 mb-4">
+              <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                  <path stroke-linecap="round" stroke-linejoin="round" d={feature.iconPath} />
+                </svg>
+              </div>
+              <h3 class="text-2xl font-semibold">
+                {t(feature.titleKey)}
+              </h3>
+            </div>
+            
+            <p class="text-lg text-muted-foreground leading-relaxed mb-4">
+              {t(feature.descKey)}
+            </p>
+
+            <div class="flex flex-wrap gap-3">
+              <span class="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-4 py-1.5 text-sm">
+                ✓ {t("featureShowcase.badge.free")}
+              </span>
+              <span class="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-4 py-1.5 text-sm">
+                ✓ {t("featureShowcase.badge.privacy")}
+              </span>
+            </div>
+          </div>
+          
+          <!-- 移动端：上下排列 -->
+          <div class="flex flex-col gap-6 lg:hidden">
+            <div class="relative rounded-xl border border-border/50 bg-muted/30 shadow-lg overflow-hidden">
+              <img 
+                src={feature.desktopImage} 
+                alt={t(feature.titleKey)}
+                class="w-full h-auto"
+              />
+            </div>
+            
+            <div class="relative bg-gradient-to-b from-muted to-muted/50 rounded-[2.5rem] border-4 border-border shadow-2xl overflow-hidden mx-auto w-64">
+              <div class="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-6 bg-border rounded-b-2xl z-10"></div>
+              <img 
+                src={feature.mobileImage} 
+                alt={`${t(feature.titleKey)} - Mobile`}
+                class="w-full h-auto"
+              />
+            </div>
+          </div>
+          
+          <!-- 桌面端：左右排列 -->
+          <div class="hidden lg:flex gap-6 items-center">
+            <div class="relative rounded-xl border border-border/50 bg-muted/30 shadow-lg overflow-hidden flex-1">
+              <img 
+                src={feature.desktopImage} 
+                alt={t(feature.titleKey)}
+                class="w-full h-auto"
+              />
+              <div class="absolute -z-10 -top-4 -right-4 w-24 h-24 bg-primary/10 rounded-full blur-2xl"></div>
+            </div>
+            
+            <div class="relative bg-gradient-to-b from-muted to-muted/50 rounded-[2.5rem] border-4 border-border shadow-2xl overflow-hidden w-72 flex-shrink-0">
+              <div class="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-6 bg-border rounded-b-2xl z-10"></div>
+              <img 
+                src={feature.mobileImage} 
+                alt={`${t(feature.titleKey)} - Mobile`}
+                class="w-full h-auto"
+              />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

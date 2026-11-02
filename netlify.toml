@@ -1,0 +1,41 @@
+# Netlify deploy config — ReadAny web demo
+#
+# Topology:
+#   /            → landing page (static, from landing/)
+#   /app/*       → ReadAny web app SPA (READANY_WEB=1 vite build, base /app/)
+#   /gemini-api  → edge function → generativelanguage.googleapis.com
+#   /cerebras-api→ edge function → api.cerebras.ai
+#   ...          → BYOK passthroughs (anthropic, openai) + Google TTS
+#
+# Required env var: GEMINI_API_KEY (Sensitive) — the edge function resolves the
+# demo key from the deploy environment ONLY. The old runtime gist broker was
+# removed: its URL was committed to this public repo, which made it (and the
+# key) public. Rotation = update the env var + redeploy.
+# Optional:
+#   CEREBRAS_API_KEY — demo server-side Cerebras key (BYOK works without it)
+#   GEMINI_API_TARGET / CEREBRAS_API_TARGET / ANTHROPIC_API_TARGET /
+#   OPENAI_API_TARGET — upstream overrides (mock servers, mirrors)
+
+# CAUTION: Netlify auto-packages every TOP-LEVEL .ts file in
+# netlify/edge-functions/ as an edge function. Keep test files/configs in
+# netlify/edge-functions/lib/ only — a stray top-level config once broke
+# every deploy (rollup native module not resolvable in the edge bundler).
+[build]
+  command = "bash scripts/netlify-build.sh"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback: /app/<anything> without a static file serves the app shell.
+# Static files (assets, icons) win automatically — no force flag.
+[[redirects]]
+  from = "/app/*"
+  to = "/app/index.html"
+  status = 200
+
+# Unknown root paths get the landing page instead of a bare 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

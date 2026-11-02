@@ -1,0 +1,62 @@
+---
+interface Props {
+  t: (key: string) => string;
+}
+
+const { t } = Astro.props;
+
+const steps = [
+  {
+    number: "01",
+    title: t("howItWorks.step1.title"),
+    description: t("howItWorks.step1.desc"),
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>`,
+  },
+  {
+    number: "02",
+    title: t("howItWorks.step2.title"),
+    description: t("howItWorks.step2.desc"),
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>`,
+  },
+  {
+    number: "03",
+    title: t("howItWorks.step3.title"),
+    description: t("howItWorks.step3.desc"),
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" /></svg>`,
+  },
+  {
+    number: "04",
+    title: t("howItWorks.step4.title"),
+    description: t("howItWorks.step4.desc"),
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>`,
+  },
+];
+---
+
+<section class="py-32 bg-muted/30">
+  <div class="mx-auto max-w-5xl px-6">
+    <div class="text-center max-w-2xl mx-auto">
+      <h2 class="text-3xl font-semibold tracking-tight">
+        {t("howItWorks.title")}
+      </h2>
+      <p class="mt-4 text-muted-foreground">
+        {t("howItWorks.subtitle")}
+      </p>
+    </div>
+
+    <div class="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+      {steps.map((step) => (
+        <div class="relative">
+          <div class="flex flex-col items-center text-center">
+            <div class="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
+              <Fragment set:html={step.icon} />
+            </div>
+            <div class="text-xs font-bold text-primary mb-2">{step.number}</div>
+            <h3 class="text-lg font-semibold mb-2">{step.title}</h3>
+            <p class="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

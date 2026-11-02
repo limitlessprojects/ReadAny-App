@@ -1,0 +1,296 @@
+---
+const { toc } = Astro.locals.starlightRoute;
+
+// Flatten the TOC tree for simple rendering
+interface TocItem {
+  slug: string;
+  text: string;
+  children: TocItem[];
+}
+function flattenToc(
+  items: TocItem[],
+  depth = 0,
+): Array<{ slug: string; text: string; depth: number }> {
+  const result: Array<{ slug: string; text: string; depth: number }> = [];
+  for (const item of items) {
+    result.push({ slug: item.slug, text: item.text, depth });
+    if (item.children.length > 0) {
+      result.push(...flattenToc(item.children, depth + 1));
+    }
+  }
+  return result;
+}
+
+const flatItems = toc ? flattenToc(toc.items) : [];
+---
+
+{
+	toc && (
+		<mobile-starlight-toc data-min-h={toc.minHeadingLevel} data-max-h={toc.maxHeadingLevel}>
+			<nav aria-labelledby="starlight__on-this-page--mobile">
+				<details id="starlight__mobile-toc">
+					<summary id="starlight__on-this-page--mobile" class="sl-flex">
+						<span class="display-current" />
+						<span class="toc-toggle sl-flex">
+							<Fragment set:html={`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`} />
+						</span>
+					</summary>
+					<div class="dropdown">
+						<ul class="toc-list">
+							{flatItems.map((item) => (
+								<li>
+									<a href={`#${item.slug}`} style={`padding-inline-start: calc(1rem + ${item.depth}rem)`}>
+										<span>{item.text}</span>
+									</a>
+								</li>
+							))}
+						</ul>
+					</div>
+				</details>
+			</nav>
+		</mobile-starlight-toc>
+	)
+}
+
+<style>
+	nav {
+		position: fixed;
+		z-index: var(--sl-z-index-toc);
+		top: calc(var(--sl-nav-height) - 1px);
+		inset-inline: 0;
+		border-top: 1px solid var(--sl-color-gray-5);
+		background-color: var(--sl-color-bg-nav);
+	}
+	@media (min-width: 50rem) {
+		nav {
+			inset-inline-start: var(--sl-content-inline-start, 0);
+		}
+	}
+
+	summary {
+		gap: 0.5rem;
+		align-items: center;
+		height: var(--sl-mobile-toc-height);
+		border-bottom: 1px solid var(--sl-color-hairline-shade);
+		padding: 0.5rem 1rem;
+		font-size: var(--sl-text-xs);
+		outline-offset: var(--sl-outline-offset-inside);
+		cursor: pointer;
+	}
+	summary::marker,
+	summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.display-current {
+		flex: 1;
+		min-width: 0;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		overflow: hidden;
+		color: var(--sl-color-white);
+		font-weight: 500;
+		font-size: 0.8125rem;
+	}
+
+	.toc-toggle {
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 6px;
+		background-color: var(--sl-color-black);
+		color: var(--sl-color-gray-2);
+		user-select: none;
+		transition: color 0.15s, border-color 0.15s;
+	}
+	details[open] .toc-toggle {
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-accent);
+	}
+	details .toc-toggle:hover {
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-gray-2);
+	}
+
+	.dropdown {
+		--border-top: 1px;
+		margin-top: calc(-1 * var(--border-top));
+		border: var(--border-top) solid var(--sl-color-gray-6);
+		border-top-color: var(--sl-color-hairline-shade);
+		max-height: calc(85vh - var(--sl-nav-height) - var(--sl-mobile-toc-height));
+		overflow-y: auto;
+		background-color: var(--sl-color-black);
+		box-shadow: var(--sl-shadow-md);
+		overscroll-behavior: contain;
+	}
+
+	.toc-list {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+
+	.toc-list a {
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+		border-top: 1px solid var(--sl-color-gray-6);
+		padding-block: 0.5rem;
+		padding-inline-end: 1rem;
+		color: var(--sl-color-text);
+		font-size: var(--sl-text-sm);
+		text-decoration: none;
+		outline-offset: var(--sl-outline-offset-inside);
+	}
+
+	.toc-list li:first-child a {
+		border-top: 0;
+	}
+
+	.toc-list a[aria-current='true'] {
+		color: var(--sl-color-white);
+	}
+</style>
+
+<script>
+	class StarlightTOCBase extends HTMLElement {
+		_current: HTMLAnchorElement | null;
+		minH: number;
+		maxH: number;
+		tocHeadingSelector: string;
+
+		constructor() {
+			super();
+			this._current = this.querySelector('a[aria-current="true"]');
+			this.minH = parseInt(this.dataset.minH || '2', 10);
+			this.maxH = parseInt(this.dataset.maxH || '3', 10);
+			const headingTags = Array.from(
+				{ length: 1 + this.maxH - this.minH },
+				(_, i) => `h${this.minH + i}`
+			);
+			this.tocHeadingSelector = `h1#_top,:where(${headingTags.join()})` + '[id]';
+
+			const onIdle = (cb: () => void) =>
+				('requestIdleCallback' in window ? window.requestIdleCallback : (fn: () => void) => setTimeout(fn, 1))(cb);
+
+			onIdle(() => this.init());
+		}
+
+		set current(link: HTMLAnchorElement) {
+			if (link === this._current) return;
+			this._current?.removeAttribute('aria-current');
+			link.setAttribute('aria-current', 'true');
+			this._current = link;
+		}
+
+		getRootMargin() {
+			const headerH = document.querySelector('header')?.getBoundingClientRect().height || 0;
+			const summaryH = this.querySelector('summary')?.getBoundingClientRect().height || 0;
+			const top = headerH + summaryH + 32;
+			const bottom = top + 53;
+			const viewH = document.documentElement.clientHeight;
+			return `-${top}px 0% ${bottom - viewH}px`;
+		}
+
+		init() {
+			const links = [...this.querySelectorAll('a')];
+			const isTocH = (el: Element) => el.matches(this.tocHeadingSelector);
+
+			const findPrevHeading = (el: Element | null): Element | null => {
+				if (!el) return null;
+				const start = el;
+				let cur: Element | null = el;
+				for (; cur; ) {
+					if (cur.matches('.sl-markdown-content, main > *'))
+						return document.getElementById('_top');
+					if (isTocH(cur)) return cur;
+					const inner = cur.querySelector(this.tocHeadingSelector);
+					if (inner) return inner;
+					for (cur = cur.previousElementSibling; cur?.lastElementChild; )
+						cur = cur.lastElementChild;
+					const found = findPrevHeading(cur);
+					if (found) return found;
+				}
+				return findPrevHeading(start.parentElement);
+			};
+
+			const callback: IntersectionObserverCallback = (entries) => {
+				for (const { isIntersecting, target } of entries) {
+					if (!isIntersecting) continue;
+					const heading = findPrevHeading(target);
+					if (!heading) continue;
+					const link = links.find(
+						(a) => a.hash === '#' + encodeURIComponent(heading.id)
+					);
+					if (link) {
+						this.current = link;
+						break;
+					}
+				}
+			};
+
+			const targets = document.querySelectorAll(
+				[
+					`main :where(${this.tocHeadingSelector})`,
+					`main :where(${this.tocHeadingSelector}, .sl-heading-wrapper) ~ *:not(:has(${this.tocHeadingSelector}))`,
+					`main .sl-markdown-content > *:not(:has(${this.tocHeadingSelector}))`,
+					`main > *:not(:has(${this.tocHeadingSelector}))`,
+				].join()
+			);
+
+			let observer: IntersectionObserver | undefined;
+			const setup = () => {
+				if (!observer) {
+					observer = new IntersectionObserver(callback, {
+						rootMargin: this.getRootMargin(),
+					});
+					targets.forEach((t) => observer!.observe(t));
+				}
+			};
+			setup();
+
+			let timeout: ReturnType<typeof setTimeout>;
+			window.addEventListener('resize', () => {
+				if (observer) { observer.disconnect(); observer = undefined; }
+				clearTimeout(timeout);
+				timeout = setTimeout(() => setup(), 200);
+			});
+		}
+	}
+
+	class MobileStarlightTOC extends StarlightTOCBase {
+		override set current(link: HTMLAnchorElement) {
+			super.current = link;
+			const display = this.querySelector('.display-current') as HTMLSpanElement;
+			if (display) display.textContent = link.textContent;
+		}
+
+		constructor() {
+			super();
+			const details = this.querySelector('details');
+			if (!details) return;
+			const closeToC = () => { details.open = false; };
+			details.querySelectorAll('a').forEach((a) => {
+				a.addEventListener('click', closeToC);
+			});
+			window.addEventListener('click', (e) => {
+				if (!details.contains(e.target as Node)) closeToC();
+			});
+			window.addEventListener('keydown', (e) => {
+				if (e.key === 'Escape' && details.open) {
+					const hasFocus = details.contains(document.activeElement);
+					closeToC();
+					if (hasFocus) {
+						const summary = details.querySelector('summary');
+						if (summary) summary.focus();
+					}
+				}
+			});
+		}
+	}
+
+	customElements.define('mobile-starlight-toc', MobileStarlightTOC);
+</script>

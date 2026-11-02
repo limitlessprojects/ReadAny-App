@@ -1,0 +1,247 @@
+---
+let locale: string | undefined;
+try {
+  locale = Astro.locals.starlightRoute?.locale;
+} catch {
+  // Fallback: detect locale from URL path
+  const pathname = Astro.url.pathname;
+  if (pathname.includes("/zh/") || pathname.startsWith("/ReadAny/zh/")) {
+    locale = "zh";
+  } else {
+    locale = undefined;
+  }
+}
+
+const themeLabels = {
+  light: locale === "zh" ? "浅色" : "Light",
+  dark: locale === "zh" ? "深色" : "Dark",
+  sepia: locale === "zh" ? "护眼" : "Sepia",
+};
+
+const themes = [
+  { value: "light", label: themeLabels.light, icon: "sun" },
+  { value: "dark", label: themeLabels.dark, icon: "moon" },
+  { value: "sepia", label: themeLabels.sepia, icon: "book-open" },
+];
+
+const ariaLabel = locale === "zh" ? "切换主题" : "Toggle theme";
+const title = locale === "zh" ? "更改主题" : "Change theme";
+---
+
+<div class="theme-select-container">
+  <button
+    id="theme-toggle-btn"
+    class="theme-toggle-trigger"
+    aria-label={ariaLabel}
+    title={title}
+  >
+    <div class="icon-stack">
+      <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+      <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+      <svg class="book-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+      </svg>
+    </div>
+  </button>
+
+  <div class="theme-menu">
+    {themes.map((theme) => (
+      <button
+        class="theme-item"
+        data-theme-value={theme.value}
+      >
+        <span class="theme-item-icon">
+          {theme.icon === 'sun' && (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+          )}
+          {theme.icon === 'moon' && (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          )}
+          {theme.icon === 'book-open' && (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+            </svg>
+          )}
+        </span>
+        <span class="theme-item-label">{theme.label}</span>
+        <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </button>
+    ))}
+  </div>
+</div>
+
+<style>
+  .theme-select-container {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .theme-toggle-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--sl-color-border, var(--border));
+    background: var(--sl-color-bg, var(--background));
+    color: var(--sl-color-text, var(--foreground));
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+
+  .theme-toggle-trigger:hover {
+    border-color: var(--sl-color-accent, var(--primary));
+    background: var(--sl-color-bg-inline-code, var(--muted));
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .icon-stack {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sun-icon, .moon-icon, .book-icon {
+    position: absolute;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    opacity: 0;
+    transform: scale(0) rotate(-90deg);
+  }
+
+  :root[data-theme="light"] .sun-icon,
+  :root[data-theme="dark"] .moon-icon,
+  :root[data-theme="sepia"] .book-icon {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+
+  .theme-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 130px;
+    background: var(--sl-color-bg-sidebar, var(--card));
+    border: 1px solid var(--sl-color-border, var(--border));
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px) scale(0.95);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+  }
+
+  .theme-select-container:hover .theme-menu,
+  .theme-select-container:focus-within .theme-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+  }
+
+  .theme-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    color: var(--sl-color-text, var(--foreground));
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+    gap: 8px;
+    position: relative;
+  }
+
+  .theme-item:hover {
+    background: var(--sl-color-bg-inline-code, var(--muted));
+    color: var(--sl-color-accent, var(--primary));
+  }
+
+  .theme-item-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    opacity: 0.7;
+  }
+
+  .check-icon {
+    margin-left: auto;
+    opacity: 0;
+    color: var(--sl-color-accent, var(--primary));
+    transition: opacity 0.2s;
+  }
+
+  :root[data-theme="light"] .theme-item[data-theme-value="light"] .check-icon,
+  :root[data-theme="dark"] .theme-item[data-theme-value="dark"] .check-icon,
+  :root[data-theme="sepia"] .theme-item[data-theme-value="sepia"] .check-icon {
+    opacity: 1;
+  }
+
+  :root[data-theme="light"] .theme-item[data-theme-value="light"],
+  :root[data-theme="dark"] .theme-item[data-theme-value="dark"],
+  :root[data-theme="sepia"] .theme-item[data-theme-value="sepia"] {
+    background: color-mix(in srgb, var(--sl-color-accent, var(--primary)) 10%, transparent);
+    color: var(--sl-color-accent, var(--primary));
+  }
+</style>
+
+<script>
+  function applyTheme(theme: string) {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('theme', theme);
+  }
+
+  function initThemeSelector() {
+    const themeItems = document.querySelectorAll('.theme-item');
+    themeItems.forEach((item) => {
+      item.addEventListener('click', () => {
+        const value = item.getAttribute('data-theme-value');
+        if (value) applyTheme(value);
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', initThemeSelector);
+  document.addEventListener('astro:page-load', initThemeSelector);
+</script>

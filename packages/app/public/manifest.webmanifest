@@ -1,0 +1,16 @@
+{
+  "name": "ReadAny — AI Reader",
+  "short_name": "ReadAny",
+  "description": "Read anything. Chat with your books and hear them read aloud, in English and Swahili.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#14142e",
+  "theme_color": "#14142e",
+  "icons": [
+    { "src": "pwa-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "pwa-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "pwa-maskable-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

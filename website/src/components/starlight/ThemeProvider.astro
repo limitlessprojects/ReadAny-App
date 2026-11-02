@@ -1,0 +1,16 @@
+---
+---
+
+<script is:inline define:vars={{ defaultTheme: 'sepia' }}>
+  (function() {
+    const getTheme = () => {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+        return localStorage.getItem('theme');
+      }
+      return defaultTheme;
+    };
+    const theme = getTheme();
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('theme', theme);
+  })();
+</script>

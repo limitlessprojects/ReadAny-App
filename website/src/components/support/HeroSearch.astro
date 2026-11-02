@@ -1,0 +1,119 @@
+---
+import { useTranslations } from "../../i18n/utils";
+
+// ReadAny doesn't pass lang directly to starlight pages easily without parsing URL
+const langMatch = Astro.url.pathname.match(/^\/ReadAny\/([a-z]{2})\//);
+const lang = langMatch ? langMatch[1] : "en";
+const t = useTranslations(lang as "en" | "zh");
+
+const title = lang === "en" ? "Welcome to the Support Center" : "欢迎来到帮助中心";
+const subtitle = lang === "en" ? "What can we help you with?" : "您想了解什么？";
+const searchPlaceholder = lang === "en" ? "Search documentation..." : "搜索文档...";
+const searchButton = lang === "en" ? "Search" : "搜索";
+---
+<div class="futu-hero-section">
+  <div class="futu-hero-content">
+    <h1 class="futu-hero-title">{title}</h1>
+    <p class="futu-hero-subtitle">{subtitle}</p>
+    
+    <div class="futu-search-wrapper">
+      <button class="futu-search-fake-input" onclick="document.querySelector('button[data-open-modal]')?.click()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="futu-search-icon">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span class="futu-search-placeholder">{searchPlaceholder}</span>
+        <span class="futu-search-action-btn">{searchButton}</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .futu-hero-section {
+    width: calc(100% + 3rem);
+    margin-left: -1.5rem;
+    margin-top: -1.5rem;
+    margin-bottom: 3rem;
+    padding: 4rem 1.5rem;
+    background: linear-gradient(135deg, var(--sl-color-bg-sidebar) 0%, var(--sl-color-bg) 100%);
+    border-bottom: 1px solid var(--sl-color-border);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .futu-hero-content {
+    max-width: 48rem;
+    width: 100%;
+  }
+  
+  .futu-hero-title {
+    font-size: 2.5rem !important;
+    font-weight: 700 !important;
+    margin-bottom: 1rem !important;
+    color: var(--sl-color-heading) !important;
+    letter-spacing: -0.02em;
+  }
+  
+  .futu-hero-subtitle {
+    font-size: 1.125rem !important;
+    color: var(--sl-color-gray-3) !important;
+    margin-bottom: 2.5rem !important;
+  }
+  
+  .futu-search-wrapper {
+    position: relative;
+    max-width: 40rem;
+    margin: 0 auto;
+  }
+  
+  .futu-search-fake-input {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 3.5rem;
+    padding: 0 0.5rem 0 1.25rem;
+    background: var(--sl-color-bg);
+    border: 1px solid var(--sl-color-border);
+    border-radius: 9999px;
+    cursor: text;
+    transition: all 0.2s ease;
+    box-shadow: var(--sl-shadow-sm);
+  }
+  
+  .futu-search-fake-input:hover {
+    border-color: var(--sl-color-border-accent);
+    box-shadow: var(--sl-shadow-md);
+  }
+  
+  .futu-search-icon {
+    color: var(--sl-color-gray-3);
+    flex-shrink: 0;
+  }
+  
+  .futu-search-placeholder {
+    margin-left: 0.75rem;
+    color: var(--sl-color-gray-4);
+    font-size: 1rem;
+    flex-grow: 1;
+    text-align: left;
+  }
+  
+  .futu-search-action-btn {
+    background: #FF6900; /* Futu primary orange */
+    color: white;
+    font-weight: 600;
+    padding: 0.6rem 1.75rem;
+    border-radius: 9999px;
+    font-size: 1rem;
+    transition: background-color 0.2s;
+  }
+  
+  .futu-search-fake-input:hover .futu-search-action-btn {
+    background: #e65c00;
+  }
+  
+  /* Make sure Starlight's search modal still works if we click this */
+</style>

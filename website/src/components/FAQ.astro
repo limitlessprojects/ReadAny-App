@@ -1,0 +1,86 @@
+---
+interface Props {
+  t: (key: string) => string;
+}
+
+const { t } = Astro.props;
+
+const faqs = [
+  {
+    question: t("faq.q1"),
+    answer: t("faq.a1"),
+  },
+  {
+    question: t("faq.q2"),
+    answer: t("faq.a2"),
+  },
+  {
+    question: t("faq.q3"),
+    answer: t("faq.a3"),
+  },
+  {
+    question: t("faq.q4"),
+    answer: t("faq.a4"),
+  },
+  {
+    question: t("faq.q5"),
+    answer: t("faq.a5"),
+  },
+  {
+    question: t("faq.q6"),
+    answer: t("faq.a6"),
+  },
+  {
+    question: t("faq.q7"),
+    answer: t("faq.a7"),
+  },
+];
+---
+
+<section class="py-32">
+  <div class="mx-auto max-w-3xl px-6">
+    <div class="text-center mb-12">
+      <h2 class="text-3xl font-semibold tracking-tight">
+        {t("faq.title")}
+      </h2>
+      <p class="mt-4 text-muted-foreground">
+        {t("faq.subtitle")}
+      </p>
+    </div>
+
+    <div class="space-y-4">
+      {faqs.map((faq, index) => (
+        <details class="group rounded-lg border border-border/50 bg-background overflow-hidden">
+          <summary class="flex items-center justify-between p-5 cursor-pointer hover:bg-muted/50 transition-colors">
+            <span class="font-medium pr-4">{faq.question}</span>
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke-width="1.5" 
+              stroke="currentColor" 
+              class="w-5 h-5 text-muted-foreground transition-transform group-open:rotate-180"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </summary>
+          <div class="px-5 pb-5 text-sm text-muted-foreground leading-relaxed border-t border-border/50 pt-4 [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono">
+            <Fragment set:html={faq.answer} />
+          </div>
+        </details>
+      ))}
+    </div>
+
+    <div class="mt-12 text-center">
+      <p class="text-sm text-muted-foreground mb-4">
+        {t("faq.more")}
+      </p>
+      <a 
+        href="/ReadAny/support/" 
+        class="inline-flex items-center justify-center rounded-full border border-border px-6 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 hover:bg-muted/50"
+      >
+        {t("faq.help")}
+      </a>
+    </div>
+  </div>
+</section>

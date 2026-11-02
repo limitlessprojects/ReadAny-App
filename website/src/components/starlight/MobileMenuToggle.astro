@@ -1,0 +1,47 @@
+---
+---
+
+<starlight-menu-button class="print:hidden" style="display:none" aria-expanded="false">
+	<button aria-expanded="false" aria-controls="starlight__sidebar" class="sl-flex md:sl-hidden"></button>
+</starlight-menu-button>
+
+<script>
+	class StarlightMenuButton extends HTMLElement {
+		btn = this.querySelector('button')!;
+
+		constructor() {
+			super();
+		}
+
+		setExpanded(expanded: boolean) {
+			this.setAttribute('aria-expanded', String(expanded));
+			document.body.toggleAttribute('data-mobile-menu-expanded', expanded);
+		}
+
+		toggleExpanded() {
+			this.setExpanded(this.getAttribute('aria-expanded') !== 'true');
+		}
+
+		closeOnEscape(e: KeyboardEvent) {
+			if (e.code === 'Escape') {
+				this.setExpanded(false);
+			}
+		}
+	}
+
+	customElements.define('starlight-menu-button', StarlightMenuButton);
+</script>
+
+<style is:global>
+	@layer starlight.core {
+		[data-mobile-menu-expanded] {
+			overflow: hidden;
+		}
+
+		@media (min-width: 50rem) {
+			[data-mobile-menu-expanded] {
+				overflow: auto;
+			}
+		}
+	}
+</style>

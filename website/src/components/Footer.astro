@@ -1,0 +1,28 @@
+---
+interface Props {
+  t: (key: string) => string;
+}
+
+const { t } = Astro.props;
+const currentYear = new Date().getFullYear();
+const locale = Astro.url.pathname.includes("/zh/") ? "zh" : "en";
+const licenseText = locale === "zh" ? "GPL-3.0 许可证。" : "GPL-3.0 License.";
+const privacyHref = locale === "zh" ? "/ReadAny/zh/privacy/" : "/ReadAny/privacy/";
+const privacyText = locale === "zh" ? "隐私政策" : "Privacy Policy";
+---
+
+<footer class="border-t border-border/50 py-8">
+  <div class="mx-auto max-w-5xl px-6">
+    <div class="flex flex-col items-center justify-between gap-4 sm:flex-row">
+      <div class="flex items-center gap-2">
+        <img src="/ReadAny/logo.svg" alt="ReadAny" class="h-5 w-5 rounded-[22%]" />
+        <span class="text-sm font-medium">ReadAny</span>
+      </div>
+
+      <div class="flex flex-col items-center gap-2 text-sm text-muted-foreground sm:flex-row sm:gap-4">
+        <p>© {currentYear} ReadAny. {licenseText}</p>
+        <a href={privacyHref} class="transition-colors hover:text-foreground">{privacyText}</a>
+      </div>
+    </div>
+  </div>
+</footer>

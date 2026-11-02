@@ -1,0 +1,205 @@
+---
+import { useTranslations } from "../../i18n/utils";
+import Layout from "../../layouts/Layout.astro";
+import Header from "../../components/Header.astro";
+import Footer from "../../components/Footer.astro";
+
+const lang = "zh";
+const t = useTranslations(lang);
+const lastUpdated = "2026 年 5 月 30 日";
+---
+
+<Layout
+  title="隐私政策 - ReadAny"
+  description="ReadAny 隐私政策，说明本地优先存储、WebDAV 同步、第三方 AI 服务、语音朗读、诊断信息与用户选择。"
+>
+  <Header lang={lang} t={t} />
+
+  <main class="legal-main">
+    <section class="legal-hero">
+      <p class="eyebrow">ReadAny</p>
+      <h1>隐私政策</h1>
+      <p class="lede">
+        ReadAny 是一款本地优先的阅读器。默认情况下，你的书籍、笔记、高亮、书签、阅读进度和设置会保存在你的设备本地。
+      </p>
+      <p class="updated">最后更新：{lastUpdated}</p>
+    </section>
+
+    <article class="legal-content">
+      <section>
+        <h2>1. 我们处理的信息</h2>
+        <p>
+          ReadAny 可能会在本地处理你导入的书籍、阅读进度、高亮、批注、书签、笔记、应用设置、阅读统计，以及你主动配置的 AI 或同步服务信息。
+        </p>
+        <p>
+          这些数据主要保存在你的设备本地。我们不会默认运营一个自动上传你阅读内容的云端书库，也不会在未启用相关功能时主动上传你的书籍和阅读数据到 ReadAny 服务器。
+        </p>
+      </section>
+
+      <section>
+        <h2>2. 本地存储</h2>
+        <p>
+          你导入的书籍和阅读数据会保存在设备上，以提供离线阅读、批注、搜索、阅读统计和朗读等功能。删除应用或清除本地应用数据可能会移除这些本地内容，具体取决于你的系统平台。
+        </p>
+      </section>
+
+      <section>
+        <h2>3. 你主动配置的同步服务</h2>
+        <p>
+          如果你启用了 WebDAV、S3、局域网同步或其他支持的同步方式，ReadAny 会把选定的书库数据发送到你配置的服务和账号。我们无法控制这些第三方或自建服务，它们的数据处理方式取决于对应服务的隐私政策和你的服务器设置。
+        </p>
+      </section>
+
+      <section>
+        <h2>4. AI、翻译、向量化和语音朗读服务</h2>
+        <p>
+          ReadAny 允许你配置外部 AI、翻译、向量模型和文字转语音服务。当你使用这些功能时，选中的文本、提问内容、书籍上下文、生成内容或语音请求可能会发送给你选择的服务商，例如 OpenAI 兼容接口、Gemini、Claude、Ollama、DeepSeek、Edge TTS 或其他自定义服务。
+        </p>
+        <p>
+          你需要自行了解并同意所连接服务商的隐私政策和数据处理条款。如果你不希望内容发送到外部服务，可以不启用这些集成功能。
+        </p>
+      </section>
+
+      <section>
+        <h2>5. 诊断与支持</h2>
+        <p>
+          本地阅读不要求你创建 ReadAny 账号。如果你通过 GitHub Issues、邮件、社区或其他渠道联系我们，我们可能会收到你主动提供的信息，例如日志、截图、设备信息或问题描述。除非排查问题确有必要，请避免发送私人书籍内容。
+        </p>
+      </section>
+
+      <section>
+        <h2>6. 购买与应用商店</h2>
+        <p>
+          如果你通过应用商店安装或购买 ReadAny，购买记录、退款、税务、账单和账号信息由对应平台处理，例如 Apple App Store 或 Google Play。我们仅会收到这些平台向开发者提供的信息。
+        </p>
+      </section>
+
+      <section>
+        <h2>7. 儿童隐私</h2>
+        <p>
+          ReadAny 是面向一般用户的生产力和阅读工具。我们不会有意收集儿童个人信息。如果你认为儿童通过支持渠道向我们提供了个人信息，请联系我们，我们会按实际情况处理。
+        </p>
+      </section>
+
+      <section>
+        <h2>8. 你的选择</h2>
+        <p>
+          你可以在应用内或通过操作系统删除书籍、笔记、高亮、同步设置、AI 服务配置或本地应用数据。你也可以随时移除第三方服务配置，以停止继续使用对应集成功能。
+        </p>
+      </section>
+
+      <section>
+        <h2>9. 政策变更</h2>
+        <p>
+          随着 ReadAny 功能演进，包括未来上线新的云服务、同步能力、AI 能力或订阅服务，我们可能会更新本隐私政策。最新版本会发布在本页面，并标注更新日期。
+        </p>
+      </section>
+
+      <section>
+        <h2>10. 联系我们</h2>
+        <p>
+          如果你有隐私相关问题，可以在
+          <a href="https://github.com/codedogQBY/ReadAny/issues" target="_blank" rel="noopener noreferrer">
+            github.com/codedogQBY/ReadAny/issues
+          </a>
+          联系我们。
+        </p>
+      </section>
+    </article>
+  </main>
+
+  <Footer t={t} />
+</Layout>
+
+<style>
+  .legal-main {
+    min-height: 100vh;
+    padding-top: 3.5rem;
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .legal-hero {
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+    padding: 5rem 1.5rem 3.5rem;
+  }
+
+  .legal-hero,
+  .legal-content {
+    margin: 0 auto;
+    max-width: 800px;
+  }
+
+  .eyebrow {
+    color: var(--muted-foreground);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    color: var(--foreground);
+    font-size: clamp(2.25rem, 6vw, 4.5rem);
+    font-weight: 750;
+    letter-spacing: 0;
+    line-height: 1.02;
+    margin: 0;
+  }
+
+  .lede {
+    color: var(--muted-foreground);
+    font-size: 1.15rem;
+    line-height: 1.8;
+    margin: 1.4rem 0 0;
+    max-width: 720px;
+  }
+
+  .updated {
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+    margin-top: 1.25rem;
+  }
+
+  .legal-content {
+    padding: 3.5rem 1.5rem 5rem;
+  }
+
+  .legal-content section + section {
+    margin-top: 2.4rem;
+  }
+
+  h2 {
+    color: var(--foreground);
+    font-size: 1.35rem;
+    letter-spacing: 0;
+    line-height: 1.25;
+    margin: 0 0 0.85rem;
+  }
+
+  p {
+    color: var(--muted-foreground);
+    font-size: 1rem;
+    line-height: 1.8;
+    margin: 0;
+  }
+
+  p + p {
+    margin-top: 0.85rem;
+  }
+
+  a {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
+  @media (max-width: 640px) {
+    .legal-hero {
+      padding-top: 4rem;
+    }
+  }
+</style>

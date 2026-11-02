@@ -1,0 +1,61 @@
+---
+draft: false
+title: 帮助中心
+description: 获取 ReadAny 帮助 - 文档、指南和常见问题解答。
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+# 帮助中心
+
+欢迎使用 ReadAny 帮助中心。在这里找到您的问题答案，了解如何充分利用 ReadAny。
+
+<CardGrid>
+<Card title="快速开始" icon="rocket">
+刚接触 ReadAny？从这里开始，快速上手并了解基础功能。
+
+- [快速开始](/ReadAny/zh/support/getting-started/)
+- [安装指南](/ReadAny/zh/support/installation/)
+- [导入书籍](/ReadAny/zh/support/import-books/)
+</Card>
+
+<Card title="阅读功能" icon="book">
+掌握阅读体验，包括标注、主题和语音朗读。
+
+- [阅读基础](/ReadAny/zh/support/reading/basics/)
+- [标注与高亮](/ReadAny/zh/support/reading/annotations/)
+- [主题设置](/ReadAny/zh/support/reading/themes/)
+- [语音朗读](/ReadAny/zh/support/reading/tts/)
+</Card>
+
+<Card title="AI 功能" icon="sparkles">
+解锁 AI 驱动的功能，实现更智能的阅读和研究。
+
+- [AI 对话](/ReadAny/zh/support/ai/chat/)
+- [语义搜索](/ReadAny/zh/support/ai/semantic-search/)
+- [AI 服务商](/ReadAny/zh/support/ai/providers/)
+</Card>
+
+<Card title="同步与导出" icon="cloud">
+保持数据同步，将笔记导出到任何地方。
+
+- [WebDAV 同步](/ReadAny/zh/support/sync/webdav/)
+- [导出笔记](/ReadAny/zh/support/sync/export-notes/)
+</Card>
+</CardGrid>
+
+## 需要更多帮助？
+
+<CardGrid>
+<Card title="常见问题" icon="question">
+查找常见问题的解答。
+
+[查看常见问题 →](/ReadAny/zh/support/faq/)
+</Card>
+
+<Card title="GitHub Issues" icon="github">
+报告问题或请求新功能。
+
+[提交 Issue →](https://github.com/codedogQBY/ReadAny/issues)
+</Card>
+</CardGrid>

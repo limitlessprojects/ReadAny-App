@@ -1,0 +1,14 @@
+---
+---
+<div class="futu-category-grid">
+  <slot />
+</div>
+
+<style>
+  .futu-category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin: 3rem 0;
+  }
+</style>

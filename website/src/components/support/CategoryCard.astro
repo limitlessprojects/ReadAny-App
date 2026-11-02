@@ -1,0 +1,84 @@
+---
+interface Props {
+  title: string;
+  icon?: string;
+}
+const { title, icon } = Astro.props;
+---
+<div class="futu-category-card">
+  <div class="futu-card-header">
+    {icon && <span class="futu-card-icon" set:html={icon} />}
+    <h3 class="futu-card-title">{title}</h3>
+  </div>
+  <div class="futu-card-content">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .futu-category-card {
+    background: var(--sl-color-bg-sidebar);
+    border: 1px solid var(--sl-color-border);
+    border-radius: var(--sl-radius-lg);
+    padding: 1.5rem;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    box-shadow: var(--sl-shadow-sm);
+  }
+  .futu-category-card:hover {
+    border-color: var(--sl-color-border-accent);
+    box-shadow: var(--sl-shadow-md);
+    transform: translateY(-2px);
+  }
+  .futu-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .futu-card-title {
+    margin: 0 !important;
+    font-size: 1.25rem !important;
+    font-weight: 600 !important;
+  }
+  .futu-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    color: var(--sl-color-text-accent);
+  }
+  .futu-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  :global(.futu-card-content ul) {
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  :global(.futu-card-content li) {
+    margin: 0.5rem 0 !important;
+    display: flex;
+    align-items: center;
+  }
+  :global(.futu-card-content li::before) {
+    content: "•";
+    color: var(--sl-color-text-accent);
+    margin-right: 0.5rem;
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  :global(.futu-card-content a) {
+    text-decoration: none !important;
+    color: var(--sl-color-text) !important;
+    font-size: 0.95rem;
+    transition: color 0.2s ease;
+  }
+  :global(.futu-card-content a:hover) {
+    color: var(--sl-color-text-accent) !important;
+  }
+</style>

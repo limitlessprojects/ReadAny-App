@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>ReadAny — read anything, talk with your books</title>
+    <meta
+      name="description"
+      content="ReadAny is an AI-powered reader: import PDF, EPUB, MOBI or text, chat with your books as you read, and have them read aloud in English and Swahili. Free AI included."
+    />
+    <meta name="theme-color" content="#0e0e24" />
+    <link rel="icon" type="image/png" href="/app/favicon-32x32.png" />
+    <link rel="apple-touch-icon" href="/app/apple-touch-icon-180.png" />
+    <style>
+      :root {
+        --bg: #0e0e24;
+        --bg-2: #14142e;
+        --panel: rgba(255, 255, 255, 0.04);
+        --panel-solid: #191938;
+        --line: rgba(255, 255, 255, 0.09);
+        --text: #f2f2fa;
+        --muted: #a2a2c6;
+        --accent: #ffb13d;
+        --accent-ink: #221503;
+        --violet: #8f7bff;
+        --ok: #4ade80;
+        --radius: 18px;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html { scroll-behavior: smooth; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, "Helvetica Neue", sans-serif;
+        background:
+          radial-gradient(1200px 600px at 80% -10%, rgba(143, 123, 255, 0.16), transparent 60%),
+          radial-gradient(900px 500px at 5% 5%, rgba(255, 177, 61, 0.08), transparent 55%),
+          var(--bg);
+        color: var(--text);
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
+      a { color: inherit; }
+
+      /* nav */
+      nav { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(14px); background: rgba(14, 14, 36, 0.72); border-bottom: 1px solid var(--line); }
+      .nav-in { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+      .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: 0.2px; text-decoration: none; }
+      .brand img { width: 34px; height: 34px; border-radius: 9px; }
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 12px 22px; border-radius: 999px; font-weight: 700; font-size: 15px;
+        text-decoration: none; border: 1px solid transparent; transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+        min-height: 46px;
+      }
+      .btn:active { transform: scale(0.98); }
+      .btn-primary { background: linear-gradient(135deg, #ffc063, var(--accent)); color: var(--accent-ink); box-shadow: 0 8px 24px rgba(255, 177, 61, 0.25); }
+      .btn-primary:hover { box-shadow: 0 10px 30px rgba(255, 177, 61, 0.4); }
+      .btn-ghost { border-color: var(--line); background: var(--panel); color: var(--text); }
+      .btn-ghost:hover { background: rgba(255, 255, 255, 0.08); }
+      .btn-sm { padding: 9px 16px; min-height: 40px; font-size: 14px; }
+
+      /* hero */
+      .hero { padding: 64px 0 40px; text-align: center; }
+      .hero h1 { font-size: clamp(34px, 7vw, 58px); line-height: 1.08; letter-spacing: -1.2px; font-weight: 850; }
+      .hero h1 .grad { background: linear-gradient(100deg, var(--accent) 5%, #ffdf9e 50%, var(--violet) 95%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .hero p.sub { margin: 18px auto 0; max-width: 640px; color: var(--muted); font-size: clamp(16px, 2.4vw, 18.5px); }
+      .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+      .trust { margin-top: 16px; font-size: 13.5px; color: var(--muted); }
+      .trust b { color: var(--ok); font-weight: 650; }
+
+      /* phone / qr */
+      .phone-card {
+        margin: 46px auto 0; max-width: 880px;
+        display: grid; grid-template-columns: 1fr; gap: 26px; align-items: center;
+        background: linear-gradient(160deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02));
+        border: 1px solid var(--line); border-radius: calc(var(--radius) + 6px); padding: 28px;
+      }
+      @media (min-width: 760px) { .phone-card { grid-template-columns: auto 1fr; padding: 36px; } }
+      .qr-box { background: #fff; border-radius: 14px; padding: 14px; width: 176px; height: 176px; margin: 0 auto; display: grid; place-items: center; }
+      .qr-box svg, .qr-box img { width: 148px; height: 148px; display: block; }
+      .qr-cap { text-align: center; font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+      .phone-steps h2 { font-size: clamp(20px, 3.4vw, 26px); letter-spacing: -0.4px; }
+      .phone-steps .hint { color: var(--muted); margin-top: 6px; font-size: 15px; }
+      .steps { margin-top: 18px; display: grid; gap: 12px; }
+      .step { display: flex; gap: 12px; align-items: flex-start; font-size: 15px; }
+      .step .n {
+        flex: 0 0 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+        background: rgba(255, 177, 61, 0.15); color: var(--accent); font-weight: 800; font-size: 13px; margin-top: 1px;
+      }
+      .step b { font-weight: 700; }
+
+      /* sections */
+      section.block { padding: 54px 0; }
+      .sec-head { text-align: center; max-width: 620px; margin: 0 auto 34px; }
+      .sec-head h2 { font-size: clamp(24px, 4.6vw, 34px); letter-spacing: -0.6px; }
+      .sec-head p { color: var(--muted); margin-top: 10px; font-size: 16px; }
+
+      .grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+      @media (min-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+      @media (min-width: 900px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+      .card {
+        background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+        padding: 22px; transition: transform 0.18s ease, border-color 0.18s ease;
+      }
+      .card:hover { transform: translateY(-3px); border-color: rgba(255, 255, 255, 0.18); }
+      .card .ico { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-size: 21px; background: rgba(143, 123, 255, 0.14); margin-bottom: 14px; }
+      .card:nth-child(odd) .ico { background: rgba(255, 177, 61, 0.13); }
+      .card h3 { font-size: 16.5px; margin-bottom: 7px; letter-spacing: -0.2px; }
+      .card p { color: var(--muted); font-size: 14.5px; }
+
+      /* how-it-works band */
+      .band {
+        border: 1px solid var(--line); border-radius: calc(var(--radius) + 4px);
+        background: linear-gradient(150deg, rgba(255, 177, 61, 0.07), rgba(143, 123, 255, 0.07));
+        padding: 30px 26px;
+      }
+      .band h2 { text-align: center; font-size: clamp(22px, 4vw, 30px); letter-spacing: -0.5px; }
+      .band .lead { text-align: center; color: var(--muted); margin: 10px auto 26px; max-width: 560px; font-size: 15.5px; }
+      .band .grid { gap: 12px; }
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 22px; }
+      .chip {
+        font-size: 13px; font-weight: 650; padding: 8px 14px; border-radius: 999px;
+        border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); color: var(--text);
+      }
+      .chip small { color: var(--muted); font-weight: 500; }
+      .fineprint { text-align: center; color: var(--muted); font-size: 13px; margin-top: 18px; }
+
+      /* download */
+      .dl-grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+      @media (min-width: 760px) { .dl-grid { grid-template-columns: repeat(3, 1fr); } }
+      .dl { border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; background: var(--panel); display: flex; flex-direction: column; gap: 12px; }
+      .dl h3 { font-size: 17px; }
+      .dl p { color: var(--muted); font-size: 14.5px; flex: 1; }
+      .dl .tag { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 0.6px; text-transform: uppercase; }
+
+      footer { border-top: 1px solid var(--line); padding: 30px 0 44px; margin-top: 30px; }
+      .foot { display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; color: var(--muted); font-size: 13.5px; }
+      .foot a { color: var(--text); text-decoration-color: rgba(255, 255, 255, 0.25); }
+      .hashtags { color: var(--accent); font-weight: 650; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="wrap nav-in">
+        <a class="brand" href="/">
+          <img src="/app/pwa-192x192.png" alt="ReadAny mascot — a ghost reading a book" />
+          ReadAny
+        </a>
+        <a class="btn btn-primary btn-sm" href="/app/">Open the app</a>
+      </div>
+    </nav>
+
+    <header class="hero wrap">
+      <h1>Read anything.<br /><span class="grad">Talk with your books.</span></h1>
+      <p class="sub">
+        Import a PDF, EPUB, MOBI or plain text — then chat with it as you read, and have it read
+        aloud in English or Swahili. It runs right in your browser, books included.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="/app/">Open the web app →</a>
+        <a class="btn btn-ghost" href="#features">See what's inside</a>
+      </div>
+      <p class="trust"><b>Free AI included</b> — no account, no API key, nothing to install for a quick look.</p>
+
+      <div class="phone-card" id="try-on-phone">
+        <div>
+          <div class="qr-box" id="qr">…</div>
+          <p class="qr-cap" id="qr-cap">scan to open on your phone</p>
+        </div>
+        <div class="phone-steps">
+          <h2>Test it on your phone</h2>
+          <p class="hint">The web app is installable — it behaves like a native app once added to your home screen.</p>
+          <div class="steps">
+            <div class="step"><span class="n">1</span><span>Scan the QR code, or open <b id="app-url">/app/</b> on your phone.</span></div>
+            <div class="step"><span class="n">2</span><span>Import any <b>PDF / EPUB / MOBI / TXT</b> — it stays in your browser storage.</span></div>
+            <div class="step"><span class="n">3</span><span>In your browser menu tap <b>Add to Home Screen</b> for the real app feel.</span></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="block wrap" id="features">
+      <div class="sec-head">
+        <h2>Everything a reader needs</h2>
+        <p>Built on the open-source ReadAny reader, tuned for a fast, talkative, multilingual reading flow.</p>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="ico">💬</div>
+          <h3>Chat with your books</h3>
+          <p>Ask about the page you're on or the whole chapter. Answers stream in token by token, with a sleek badge showing the response speed (time-to-first-token).</p>
+        </div>
+        <div class="card">
+          <div class="ico">🎁</div>
+          <h3>Free from the first message</h3>
+          <p>The demo ships with a shared free-tier Gemini key held on the server. Open the app and start asking — no signup, no key, no setup.</p>
+        </div>
+        <div class="card">
+          <div class="ico">🔑</div>
+          <h3>Bring your own model</h3>
+          <p>Want your own quota? Settings → AI: paste a key for Cerebras, Claude, OpenAI (Codex) or your own Gemini. Your key travels with your requests — it is never stored on our servers.</p>
+        </div>
+        <div class="card">
+          <div class="ico">🔊</div>
+          <h3>Read aloud</h3>
+          <p>Natural text-to-speech with automatic English and Swahili voice matching, plus a resilient fallback chain so narration keeps working.</p>
+        </div>
+        <div class="card">
+          <div class="ico">📚</div>
+          <h3>Every format you read</h3>
+          <p>PDF, EPUB, MOBI, TXT and Markdown, with highlights, notes and reading stats. On the web your library lives in private browser storage — nothing is uploaded.</p>
+        </div>
+        <div class="card">
+          <div class="ico">⚡</div>
+          <h3>Fast by design</h3>
+          <p>Streaming everything: chat tokens land as they are generated, and the UI stays responsive on mid-range phones.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="block wrap">
+      <div class="band">
+        <h2>Works out of the box, yours when you want more</h2>
+        <p class="lead">Two layers: a shared free tier so the first chat works immediately, and BYOK underneath for your own keys.</p>
+        <div class="grid">
+          <div class="step"><span class="n">1</span><span><b>Open the app.</b> A free Gemini endpoint is already configured — the first answer just works.</span></div>
+          <div class="step"><span class="n">2</span><span><b>Read and chat freely.</b> The free-tier key lives server-side; your books stay on your device.</span></div>
+          <div class="step"><span class="n">3</span><span><b>Optionally add your key.</b> Settings → AI → paste any provider key — it overrides the shared tier for your session.</span></div>
+        </div>
+        <div class="chips">
+          <span class="chip">Gemini <small>· default, free tier</small></span>
+          <span class="chip">Cerebras <small>· BYOK</small></span>
+          <span class="chip">Claude <small>· BYOK</small></span>
+          <span class="chip">OpenAI / Codex <small>· BYOK</small></span>
+          <span class="chip">Groq &amp; more <small>· BYOK</small></span>
+        </div>
+        <p class="fineprint">BYOK keys are kept in your browser's local settings and sent per-request; the shared demo key never appears in your client.</p>
+      </div>
+    </section>
+
+    <section class="block wrap" id="cerebras">
+      <h2>Built with Cerebras</h2>
+      <p>ReadAny's web demo was built for the Cerebras hackathon. Cerebras Llama 3.3 (<code>llama-3.3-70b</code>) drove the first provider integration and API testing; <strong>gpt-oss-120b</strong> generated the recorded demo answers and the first draft of the proxy regression tests. Measured through the production edge proxy: <strong>664–776 ms to first token, 2,534–4,373 tok/s</strong>. The app has a built-in Cerebras provider, so you can paste your own Cerebras key in Settings → AI, and every answer shows a live time-to-first-token and tokens-per-second badge so you can see the speed for yourself.</p>
+      <p style="margin-top:14px"><a class="btn btn-primary" href="/demo.html">Watch a no-key demo</a> <a class="btn btn-ghost" href="https://github.com/limitlessprojects/ReadAny-App#built-with-cerebras">Details on GitHub</a></p>
+    </section>
+
+    <section class="block wrap" id="download">
+      <div class="sec-head">
+        <h2>Get ReadAny</h2>
+        <p>Three ways in — pick whichever fits.</p>
+      </div>
+      <div class="dl-grid">
+        <div class="dl">
+          <span class="tag">Android</span>
+          <h3>Install the APK</h3>
+          <p>A real Android app — download, tap to install (allow "install from this source"), done. AI works out of the box, no key needed.</p>
+          <a class="btn btn-primary" id="apk-btn" href="https://github.com/limitlessprojects/ReadAny-App/releases/download/readany-android/ReadAny.apk">Download APK ↓</a>
+          <p class="apk-status" id="apk-status" style="font-size:12px;opacity:.7;margin-top:6px"></p>
+        </div>
+        <div class="dl">
+          <span class="tag">Easiest</span>
+          <h3>Web app — any device</h3>
+          <p>Open it in a browser and it's ready. On Android/iOS, "Add to Home Screen" turns it into a standalone app with its own icon. First open downloads ~2&nbsp;MB — give it a few seconds on mobile data.</p>
+          <a class="btn btn-primary" href="/app/">Open the web app</a>
+        </div>
+        <div class="dl">
+          <span class="tag">Desktop</span>
+          <h3>Installers &amp; releases</h3>
+          <p>The Tauri desktop build ships native installers for Windows, macOS and Linux from the project's releases page.</p>
+          <a class="btn btn-ghost" href="https://github.com/limitlessprojects/ReadAny-App/releases" target="_blank" rel="noopener">Releases on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap foot">
+        <span>Built for the Cerebras hackathon · <span class="hashtags">#bigchipenergy</span></span>
+        <span>Free-tier AI by Google Gemini · upstream reader by the ReadAny contributors · GPL-3.0</span>
+      </div>
+    </footer>
+
+    <script src="qrcode.min.js"></script>
+    <script>
+      (function () {
+        var appUrl = window.location.origin + "/app/";
+        document.getElementById("app-url").textContent = appUrl.replace(/^https?:\/\//, "");
+        var box = document.getElementById("qr");
+        try {
+          if (typeof qrcode === "function") {
+            var qr = qrcode(0, "M");
+            qr.addData(appUrl);
+            qr.make();
+            box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 1, scalable: true });
+          } else {
+            throw new Error("qr lib missing");
+          }
+        } catch (e) {
+          box.innerHTML = '<a href="' + appUrl + '" style="font-size:12px;word-break:break-all;text-align:center;padding:8px">' + appUrl + "</a>";
+        }
+        document.getElementById("qr-cap").textContent = "scan to open " + appUrl.replace(/^https?:\/\//, "");
+      })();
+
+      // APK availability probe — show size, or hide the card state quietly.
+      (function () {
+        var btn = document.getElementById("apk-btn");
+        var status = document.getElementById("apk-status");
+        if (!btn || !status) return;
+        fetch("https://api.github.com/repos/limitlessprojects/ReadAny-App/releases/tags/readany-android", { cache: "no-store" })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+          .then(function (rel) {
+            var asset = (rel.assets || []).find(function (a) { return a.name === "ReadAny.apk"; });
+            if (!asset) { status.textContent = ""; return; }
+            status.textContent = "v" + (asset.download_count ? "" : "") + (rel.tag_name || "") +
+              " · " + Math.round(asset.size / 1048576) + " MB · updated " +
+              new Date(asset.updated_at).toLocaleDateString();
+          })
+          .catch(function (code) {
+            // 403 = GitHub's anonymous API rate limit, not a missing APK.
+            status.textContent = code === 404 ? "APK is building — check back in a few minutes" : "";
+          });
+      })();
+    </script>
+  </body>
+</html>
