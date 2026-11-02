@@ -1,0 +1,112 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.3.0). Required for manual runs."
+        required: true
+
+jobs:
+  update-homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+          if [ -z "$TAG" ]; then
+            echo "::error::tag is empty"
+            exit 1
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "Resolved tag=$TAG, version=${TAG#v}"
+
+      - name: Download macOS assets and calculate SHA256
+        id: sha
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          mkdir -p dist
+          gh release download "$TAG" --repo ${{ github.repository }} \
+            --pattern "ReadAny_aarch64.app.tar.gz" \
+            --pattern "ReadAny_x64.app.tar.gz" \
+            --dir dist
+          SHA_ARM=$(sha256sum dist/ReadAny_aarch64.app.tar.gz | cut -d' ' -f1)
+          SHA_INTEL=$(sha256sum dist/ReadAny_x64.app.tar.gz | cut -d' ' -f1)
+          echo "arm=$SHA_ARM" >> $GITHUB_OUTPUT
+          echo "intel=$SHA_INTEL" >> $GITHUB_OUTPUT
+          echo "ARM SHA256: $SHA_ARM"
+          echo "Intel SHA256: $SHA_INTEL"
+
+      - name: Update Homebrew formula
+        env:
+          # Cross-repo write needs a PAT with contents:write on codedogQBY/homebrew-readany;
+          # the default GITHUB_TOKEN is scoped to this repo only.
+          GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${{ steps.tag.outputs.version }}"
+          SHA_ARM="${{ steps.sha.outputs.arm }}"
+          SHA_INTEL="${{ steps.sha.outputs.intel }}"
+
+          cat > /tmp/readany.rb << 'FORMULA'
+          cask "readany" do
+            version "VERSION_PLACEHOLDER"
+
+            on_arm do
+              sha256 "SHA_ARM_PLACEHOLDER"
+              url "https://github.com/codedogQBY/ReadAny/releases/download/v#{version}/ReadAny_aarch64.app.tar.gz"
+            end
+
+            on_intel do
+              sha256 "SHA_INTEL_PLACEHOLDER"
+              url "https://github.com/codedogQBY/ReadAny/releases/download/v#{version}/ReadAny_x64.app.tar.gz"
+            end
+
+            name "ReadAny"
+            desc "AI-powered cross-platform ebook reader"
+            homepage "https://github.com/codedogQBY/ReadAny"
+
+            app "ReadAny.app"
+
+            zap trash: [
+              "~/Library/Application Support/com.readany.app",
+              "~/Library/Caches/com.readany.app",
+              "~/Library/Preferences/com.readany.app.plist",
+            ]
+          end
+          FORMULA
+
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g" /tmp/readany.rb
+          sed -i "s/SHA_ARM_PLACEHOLDER/$SHA_ARM/g" /tmp/readany.rb
+          sed -i "s/SHA_INTEL_PLACEHOLDER/$SHA_INTEL/g" /tmp/readany.rb
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' /tmp/readany.rb
+
+          # Update the formula in homebrew-readany repo via GitHub API
+          CONTENT=$(base64 -w 0 /tmp/readany.rb)
+          EXISTING_SHA=$(gh api repos/codedogQBY/homebrew-readany/contents/Casks/readany.rb --jq '.sha' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING_SHA" ]; then
+            gh api repos/codedogQBY/homebrew-readany/contents/Casks/readany.rb \
+              -X PUT \
+              -f message="chore: bump ReadAny to v${VERSION}" \
+              -f content="$CONTENT" \
+              -f sha="$EXISTING_SHA"
+          else
+            gh api repos/codedogQBY/homebrew-readany/contents/Casks/readany.rb \
+              -X PUT \
+              -f message="chore: bump ReadAny to v${VERSION}" \
+              -f content="$CONTENT"
+          fi
+
+          echo "✅ Homebrew formula updated to v${VERSION}"

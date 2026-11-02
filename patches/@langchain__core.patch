@@ -1,0 +1,26 @@
+diff --git a/dist/utils/env.cjs b/dist/utils/env.cjs
+index 3b55fc3dee7a1a1cdff8813a71e25259b976a03a..9d101dff39630ead5f7b2544d7cfdaeba7f0c75b 100644
+--- a/dist/utils/env.cjs
++++ b/dist/utils/env.cjs
+@@ -14,7 +14,7 @@ var env_exports = /* @__PURE__ */ require_runtime.__exportAll({
+ });
+ const isBrowser = () => typeof window !== "undefined" && typeof window.document !== "undefined";
+ const isWebWorker = () => typeof globalThis === "object" && globalThis.constructor && globalThis.constructor.name === "DedicatedWorkerGlobalScope";
+-const isJsDom = () => typeof window !== "undefined" && window.name === "nodejs" || typeof navigator !== "undefined" && navigator.userAgent.includes("jsdom");
++const isJsDom = () => typeof window !== "undefined" && window.name === "nodejs" || typeof navigator !== "undefined" && typeof navigator.userAgent === "string" && navigator.userAgent.includes("jsdom");
+ const isDeno = () => typeof Deno !== "undefined";
+ const isNode = () => typeof process !== "undefined" && typeof process.versions !== "undefined" && typeof process.versions.node !== "undefined" && !isDeno();
+ const getEnv = () => {
+diff --git a/dist/utils/env.js b/dist/utils/env.js
+index e5a58a8f37514dac1bb4084e7d8dafa271cf10ad..33d9ed9e305e9ec834a121633f8abdfe6035dad4 100644
+--- a/dist/utils/env.js
++++ b/dist/utils/env.js
+@@ -13,7 +13,7 @@ var env_exports = /* @__PURE__ */ __exportAll({
+ });
+ const isBrowser = () => typeof window !== "undefined" && typeof window.document !== "undefined";
+ const isWebWorker = () => typeof globalThis === "object" && globalThis.constructor && globalThis.constructor.name === "DedicatedWorkerGlobalScope";
+-const isJsDom = () => typeof window !== "undefined" && window.name === "nodejs" || typeof navigator !== "undefined" && navigator.userAgent.includes("jsdom");
++const isJsDom = () => typeof window !== "undefined" && window.name === "nodejs" || typeof navigator !== "undefined" && typeof navigator.userAgent === "string" && navigator.userAgent.includes("jsdom");
+ const isDeno = () => typeof Deno !== "undefined";
+ const isNode = () => typeof process !== "undefined" && typeof process.versions !== "undefined" && typeof process.versions.node !== "undefined" && !isDeno();
+ const getEnv = () => {

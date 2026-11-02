@@ -1,0 +1,165 @@
+name: Android APK
+
+# Builds an installable release APK of the Expo/RN app on a GitHub runner
+# (no EAS account needed) and attaches it to the "readany-android" release,
+# so the landing page can offer a direct download:
+#   https://github.com/limitlessprojects/ReadAny-App/releases/download/readany-android/ReadAny.apk
+# (fixed tag URL on purpose: "releases/latest" jumps to whichever release was
+# created last, e.g. a desktop v* release that has no APK attached)
+#
+# Signing: when the APK_KEYSTORE_* secrets exist the release build signs with
+# the project's release keystore (PKCS12, injected post-prebuild by
+# scripts/apply-release-signing.mjs) — installs can then update over each
+# other. Without the secrets it falls back to the template's debug keystore,
+# which is fine for a throwaway sideload but CANNOT update over a properly
+# signed install (Android enforces signature continuity).
+# NOTE: the first release-keystore APK requires a one-time uninstall of any
+# earlier debug-signed install — signatures differ by design.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, cerebras-demo]
+    paths:
+      - "packages/app-expo/**"
+      - "packages/core/**"
+      - "packages/foliate-js/**"
+      - ".github/workflows/android-apk.yml"
+
+# GLOBAL (not per-ref): two refs pushing at once must not race on the
+# rolling release — one run's cleanup step deleted the other's release
+# mid-upload once already.
+concurrency:
+  group: android-apk
+  cancel-in-progress: false
+
+# The rolling-release step creates/deletes releases via the API — the
+# default GITHUB_TOKEN is read-only without this.
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Bundle reader assets + configure production variant
+        working-directory: packages/app-expo
+        run: |
+          APP_VARIANT=production pnpm run build:reader
+          APP_VARIANT=production node scripts/configure-native-variant.js
+
+      - name: Expo prebuild (android)
+        working-directory: packages/app-expo
+        env:
+          APP_VARIANT: production
+        run: pnpm exec expo prebuild -p android --no-install
+
+      - name: Verify arm64-only packaging
+        working-directory: packages/app-expo/android
+        run: |
+          grep -E "reactNativeArchitectures" gradle.properties
+          grep -E "abiFilters" app/build.gradle
+
+      - name: Decode release keystore
+        id: keystore
+        env:
+          APK_KEYSTORE_BASE64: ${{ secrets.APK_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$APK_KEYSTORE_BASE64" ]; then
+            echo "$APK_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "keystore decoded: $(ls -la $RUNNER_TEMP/release.keystore | awk '{print $5}') bytes"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "APK_KEYSTORE_BASE64 not set — building with the debug keystore"
+          fi
+
+      - name: Apply release signing config
+        working-directory: packages/app-expo/android
+        if: steps.keystore.outputs.present == 'true'
+        env:
+          RELEASE_KEYSTORE_FILE: ${{ runner.temp }}/release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.APK_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.APK_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.APK_KEY_PASSWORD }}
+        run: node ../../../scripts/apply-release-signing.mjs app/build.gradle
+
+      - name: Gradle assembleRelease
+        working-directory: packages/app-expo/android
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Verify APK signature
+        if: steps.keystore.outputs.present == 'true'
+        run: |
+          APK=$(find packages/app-expo/android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK" | tee sig.txt
+          grep -q "CN=ReadAny Release" sig.txt
+
+      - name: Collect APK
+        run: |
+          APK=$(find packages/app-expo/android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "found: $APK"
+          cp "$APK" ReadAny.apk
+          ls -lh ReadAny.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReadAny-apk
+          path: ReadAny.apk
+
+      - name: Attach to rolling "readany-android" release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=readany-android
+          # Delete previous release + tag (rolling latest build).
+          release_id=$(curl -sS "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/$TAG" \
+            -H "Authorization: Bearer $GH_TOKEN" | jq -r '.id // empty')
+          if [ -n "$release_id" ]; then
+            curl -sS -X DELETE "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/$release_id" \
+              -H "Authorization: Bearer $GH_TOKEN"
+          fi
+          git push origin ":refs/tags/$TAG" 2>/dev/null || true
+          # Tag creation races with any in-flight run of the same step —
+          # retry until the release POST yields a real upload_url.
+          upload_url=""
+          for i in 1 2 3 4 5 6; do
+            release=$(curl -sS -X POST "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" \
+              -H "Authorization: Bearer $GH_TOKEN" -H "content-type: application/json" -d "{
+                \"tag_name\": \"$TAG\",
+                \"target_commitish\": \"${GITHUB_SHA}\",
+                \"name\": \"ReadAny — latest Android build\",
+                \"body\": \"Installable demo APK (sideload: allow installs from this source). Signed with the project release keystore — if an older build refuses to install over the existing one, uninstall it first (one-time; signatures differ). AI works out of the box via the free demo proxy. Built from commit ${GITHUB_SHA}.\",
+                \"prerelease\": false
+              }")
+            upload_url=$(echo "$release" | jq -r '.upload_url // empty' | sed 's/{.*}//')
+            if [ -n "$upload_url" ] && [ "$upload_url" != "null" ]; then break; fi
+            echo "release create attempt $i failed: $(echo "$release" | head -c 200)"
+            sleep 15
+          done
+          test -n "$upload_url" && test "$upload_url" != "null"
+          curl -sS -X POST "$upload_url?name=ReadAny.apk" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "content-type: application/vnd.android.package-archive" \
+            --data-binary @ReadAny.apk | jq -r '.browser_download_url'

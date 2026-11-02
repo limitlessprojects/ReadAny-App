@@ -1,0 +1,236 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release (e.g. v1.3.7)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+            target: aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+            target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+            target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            args: ""
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./packages/app/src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Verify version consistency
+        run: node scripts/bump-version.js --check
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          VITE_FEEDBACK_WORKER_URL: ${{ secrets.FEEDBACK_WORKER_URL }}
+        with:
+          projectPath: "./packages/app"
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: "ReadAny ${{ env.RELEASE_TAG }}"
+          releaseBody: "See ASSETS to download and install this version."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  build-android:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build reader assets
+        run: pnpm --filter @readany/app-expo run build:reader
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android APK (Local)
+        env:
+          EXPO_PUBLIC_FEEDBACK_WORKER_URL: ${{ secrets.FEEDBACK_WORKER_URL }}
+          APP_VARIANT: production
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          cd packages/app-expo
+          npx eas-cli build --platform android --profile production-apk --local --non-interactive --output=../../ReadAny-${VERSION}.apk
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ReadAny-*.apk
+          tag_name: ${{ github.ref_name }}
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  create-updater-json:
+    if: github.event_name == 'push'
+    needs: [build, build-android]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Wait for release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Wait for release to be created
+          for i in {1..30}; do
+            if gh release view ${{ github.ref_name }} --json tagName --jq '.tagName' 2>/dev/null; then
+              echo "Release found"
+              break
+            fi
+            sleep 5
+          done
+
+          # Check if release is a draft
+          IS_DRAFT=$(gh release view ${{ github.ref_name }} --json isDraft --jq '.')
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "Release is a draft, skipping latest.json upload"
+            exit 0
+          fi
+
+      - name: Download signature files and generate latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          TAG="${{ github.ref_name }}"
+
+          # Download .sig files from the release (generated by tauri-action with TAURI_SIGNING_PRIVATE_KEY)
+          mkdir -p sigs
+          gh release download "$TAG" --pattern "*.sig" --dir sigs 2>/dev/null || true
+
+          # Read signatures (fallback to empty if sig file not found)
+          read_sig() {
+            local file="$1"
+            if [ -f "sigs/$file" ]; then
+              cat "sigs/$file"
+            else
+              echo ""
+            fi
+          }
+
+          SIG_DARWIN_AARCH64=$(read_sig "ReadAny_aarch64.app.tar.gz.sig")
+          SIG_DARWIN_X64=$(read_sig "ReadAny_x64.app.tar.gz.sig")
+          SIG_WINDOWS=$(read_sig "ReadAny_${VERSION}_x64-setup.exe.sig")
+          SIG_LINUX=$(read_sig "readany_${VERSION}_amd64.deb.sig")
+
+          cat > latest.json << EOF
+          {
+            "version": "${VERSION}",
+            "notes": "See https://github.com/${REPO}/releases/tag/${TAG} for details",
+            "pub_date": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${SIG_DARWIN_AARCH64}",
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/ReadAny_aarch64.app.tar.gz"
+              },
+              "darwin-x86_64": {
+                "signature": "${SIG_DARWIN_X64}",
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/ReadAny_x64.app.tar.gz"
+              },
+              "windows-x86_64": {
+                "signature": "${SIG_WINDOWS}",
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/ReadAny_${VERSION}_x64-setup.exe"
+              },
+              "linux-x86_64": {
+                "signature": "${SIG_LINUX}",
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/readany_${VERSION}_amd64.deb"
+              }
+            }
+          }
+          EOF
+
+      - name: Upload latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} latest.json --clobber

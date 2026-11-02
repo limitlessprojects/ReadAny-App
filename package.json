@@ -1,0 +1,47 @@
+{
+  "name": "readany",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "build": "pnpm --filter app build",
+    "cli": "pnpm --filter @readany/cli dev",
+    "cli:build": "pnpm --filter @readany/cli build",
+    "cli:preflight": "pnpm --filter @readany/cli preflight:release",
+    "cli:preflight:full": "pnpm --filter @readany/cli preflight:release -- --include-app-build",
+    "cli:test": "pnpm --filter @readany/cli test",
+    "dev": "pnpm --filter app dev",
+    "eas:build:android": "pnpm --filter @readany/app-expo eas:build:android",
+    "eas:build:ios": "pnpm --filter @readany/app-expo eas:build:ios",
+    "eas:device:create": "pnpm --filter @readany/app-expo eas:device:create",
+    "expo:android": "pnpm --filter @readany/app-expo android",
+    "expo:ios": "pnpm --filter @readany/app-expo ios",
+    "expo:ios:simulator": "pnpm --filter @readany/app-expo ios:simulator",
+    "expo:prebuild": "pnpm --filter @readany/app-expo prebuild",
+    "expo:start": "pnpm --filter @readany/app-expo start",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "tauri": "pnpm --filter app tauri",
+    "test": "pnpm --filter @readany/core test",
+    "test:core": "pnpm --filter @readany/core test",
+    "test:proxy": "vitest run --root netlify/edge-functions/lib",
+    "version:check": "node scripts/bump-version.js --check",
+    "version:set": "node scripts/bump-version.js"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "vitest": "^4.1.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "19.1.0",
+      "react-dom": "19.1.0",
+      "@types/react": "19.1.17"
+    },
+    "patchedDependencies": {
+      "@langchain/core": "patches/@langchain__core.patch",
+      "react-native-track-player@4.1.2": "patches/react-native-track-player@4.1.2.patch",
+      "@expo/cli@54.0.23": "patches/@expo__cli@54.0.23.patch"
+    }
+  },
+  "packageManager": "pnpm@9.15.0"
+}

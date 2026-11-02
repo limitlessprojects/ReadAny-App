@@ -1,0 +1,35 @@
+name: AI Smoke (Cerebras BYOK)
+
+# Verifies the real BYOK chat path — createChatModelFromEndpoint →
+# getEndpointFetch (incl. stream metrics) → @langchain/openai — against the
+# Cerebras API from a GitHub runner (sandbox/dev machines may be
+# Cloudflare-blocked). Runs only on manual dispatch; never on push.
+#
+# The key lives in the CEREBRAS_API_KEY repo secret (never inline it here).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: AI streaming smoke test (direct Cerebras)
+        env:
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+        run: |
+          cd packages/core
+          npx vitest run src/ai/__tests__/cerebras-smoke.test.ts

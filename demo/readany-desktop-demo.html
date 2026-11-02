@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReadAny — Desktop Demo</title>
+<style>
+  /* ============================================================
+     RATIO ENFORCEMENT — the acceptance-critical CSS
+     .window-shell is a HARD 1440x900 canvas (aspect-ratio 1440/900,
+     fixed px width+height, overflow hidden). It is never width:100vw.
+     A JS-driven transform on .scale-wrap shrinks the WHOLE shell
+     proportionally when the browser is smaller — the ratio never changes.
+     ============================================================ */
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    background:#111318;
+    background-image:radial-gradient(1200px 700px at 50% 30%, #1b1f29 0%, #111318 70%);
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif;
+    color:#e8e4da;
+  }
+  .scale-wrap { /* only transform-scale applied here — never resize the shell */
+    transform-origin:center center;
+  }
+  .window-shell {
+    width:1440px;  height:900px;          /* exact canvas */
+    aspect-ratio:1440/900;
+    overflow:hidden;
+    border-radius:14px;
+    position:relative;
+    background:#191c24;
+    border:1px solid #2c313d;
+    box-shadow:0 40px 120px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04) inset;
+    display:flex; flex-direction:column;
+  }
+  /* ---- window chrome ---- */
+  .titlebar {
+    height:40px; flex-shrink:0;
+    background:#14161d; border-bottom:1px solid #262b35;
+    display:flex; align-items:center; padding:0 14px; gap:8px;
+    user-select:none;
+  }
+  .traffic { display:flex; gap:8px; }
+  .traffic i { width:12px; height:12px; border-radius:50%; display:block; }
+  .traffic i:nth-child(1){background:#ff5f57} .traffic i:nth-child(2){background:#febc2e} .traffic i:nth-child(3){background:#28c840}
+  .titlebar .title {
+    position:absolute; left:50%; transform:translateX(-50%);
+    font-size:13px; color:#8b90a0; font-weight:500;
+  }
+  .titlebar .demo-tag {
+    margin-left:auto; font-size:11px; letter-spacing:.4px; color:#6b7185;
+    border:1px solid #2c313d; border-radius:20px; padding:3px 10px;
+  }
+  /* ---- app layout: 3 panels ---- */
+  .app-body { flex:1; display:flex; min-height:0; position:relative; }
+  .panel { min-height:0; }
+  /* ================= SCREENS ================= */
+  .screen {
+    position:absolute; inset:0; display:flex;
+    opacity:0; pointer-events:none;
+    transition:opacity .45s ease, transform .45s ease;
+    transform:translateX(24px);
+  }
+  .screen.active { opacity:1; pointer-events:auto; transform:translateX(0); }
+  .screen.back { transform:translateX(-24px); }
+
+  /* ---------- SIDEBAR (shared) ---------- */
+  .sidebar {
+    width:240px; flex-shrink:0; background:#14161d; border-right:1px solid #232833;
+    padding:22px 14px; display:flex; flex-direction:column; gap:6px;
+  }
+  .brand { display:flex; align-items:center; gap:10px; padding:0 8px 20px; }
+  .brand .logo {
+    width:30px; height:30px; border-radius:9px;
+    background:linear-gradient(135deg,#e0a458,#c97b3f);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; color:#1a1409; font-size:15px;
+  }
+  .brand b { font-size:16px; letter-spacing:.2px; }
+  .nav-item {
+    display:flex; align-items:center; gap:11px; padding:10px 12px;
+    border-radius:9px; color:#9aa0b2; font-size:14px; cursor:pointer;
+    transition:background .15s,color .15s;
+  }
+  .nav-item:hover { background:#1b1f29; color:#e8e4da; }
+  .nav-item.active { background:#232936; color:#f4c88a; font-weight:600; }
+  .nav-item svg { width:17px; height:17px; opacity:.85; }
+  .sidebar .spacer { flex:1; }
+  .ai-chip {
+    margin:0 4px; padding:12px; border-radius:12px;
+    background:linear-gradient(135deg,#252b3a,#1e2330);
+    border:1px solid #323a4d; font-size:12.5px; color:#aeb4c6; line-height:1.45;
+  }
+  .ai-chip b { color:#f4c88a; display:block; margin-bottom:2px; font-size:12.5px; }
+
+  /* ---------- SCREEN 1: LIBRARY ---------- */
+  .lib-main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .lib-head { padding:30px 36px 8px; }
+  .lib-head h1 { font-size:24px; font-weight:700; letter-spacing:.2px; }
+  .lib-head p { color:#8b90a0; font-size:13.5px; margin-top:5px; }
+  .lib-head .row { display:flex; align-items:flex-end; justify-content:space-between; }
+  .btn-primary {
+    background:linear-gradient(135deg,#e8b36a,#cf8a45); color:#241a0c;
+    border:none; border-radius:10px; padding:11px 22px; font-size:14px;
+    font-weight:700; cursor:pointer; transition:transform .12s, box-shadow .12s;
+    box-shadow:0 4px 16px rgba(207,138,69,.25);
+  }
+  .btn-primary:active { transform:scale(.96); }
+  .btn-primary:hover { box-shadow:0 6px 22px rgba(207,138,69,.4); }
+  .book-grid {
+    display:grid; grid-template-columns:repeat(4,1fr); gap:22px;
+    padding:26px 36px; overflow-y:auto; align-content:start;
+  }
+  .book-card {
+    background:#1e222d; border:1px solid #2a3040; border-radius:14px;
+    overflow:hidden; cursor:pointer; transition:transform .18s, border-color .18s;
+  }
+  .book-card:hover { transform:translateY(-4px); border-color:#3a4358; }
+  .book-cover {
+    height:170px; position:relative; display:flex; align-items:flex-end; padding:14px;
+    color:#fff;
+  }
+  .book-cover .t { font-weight:700; font-size:15px; text-shadow:0 1px 8px rgba(0,0,0,.5); }
+  .book-cover .a { font-size:11.5px; opacity:.85; text-shadow:0 1px 6px rgba(0,0,0,.5); }
+  .book-meta { padding:11px 13px; font-size:11.5px; color:#8b90a0; display:flex; justify-content:space-between; }
+  .progress-pill { background:#262d3d; border-radius:20px; padding:2px 8px; color:#9fc48f; }
+  .badge-ai {
+    position:absolute; top:10px; right:10px; background:rgba(0,0,0,.55); backdrop-filter:blur(4px);
+    border:1px solid rgba(255,255,255,.18); color:#ffd9a0; font-size:10.5px;
+    padding:3px 9px; border-radius:20px; font-weight:600;
+  }
+  /* ---------- SCREEN 2: READER ---------- */
+  .reader { flex:1; display:flex; min-width:0; }
+  .reader-main { flex:1; display:flex; flex-direction:column; min-width:0; background:#20242f; }
+  .reader-top {
+    height:52px; flex-shrink:0; display:flex; align-items:center; gap:14px;
+    padding:0 26px; border-bottom:1px solid #282d3a; color:#8b90a0; font-size:13px;
+  }
+  .crumb b { color:#d7d2c4; font-weight:600; }
+  .reader-page {
+    flex:1; overflow-y:auto; padding:36px 0; display:flex; justify-content:center;
+  }
+  .page-inner { width:600px; font-family:Georgia,'Times New Roman',serif; font-size:16.5px; line-height:1.85; color:#cfcabd; }
+  .page-inner h2 { font-family:'Segoe UI',system-ui,sans-serif; font-size:21px; color:#e8e4da; margin-bottom:22px; letter-spacing:.2px;}
+  .page-inner p { margin-bottom:18px; }
+  .drop::first-letter { font-size:52px; float:left; line-height:.85; padding:6px 10px 0 0; color:#e0a458; font-weight:700; font-family:Georgia,serif; }
+  .passage {
+    background:rgba(232,179,106,.1); border-left:3px solid #e8b36a;
+    padding:12px 16px; margin:20px -16px; border-radius:0 8px 8px 0; cursor:pointer;
+    transition:background .2s;
+  }
+  .passage:hover { background:rgba(232,179,106,.18); }
+  .passage .hint {
+    display:block; font-family:'Segoe UI',sans-serif; font-size:11px; color:#e0a458;
+    margin-top:8px; letter-spacing:.5px; text-transform:uppercase; font-weight:600;
+  }
+  .ai-side {
+    width:360px; flex-shrink:0; border-left:1px solid #282d3a; background:#1b1f29;
+    display:flex; flex-direction:column; min-height:0;
+  }
+  .ai-side-head { padding:18px 20px 12px; border-bottom:1px solid #262b37; }
+  .ai-side-head h3 { font-size:14.5px; color:#e8e4da; display:flex; align-items:center; gap:8px; }
+  .dot-live { width:7px; height:7px; border-radius:50%; background:#7dd487; box-shadow:0 0 8px #7dd487; }
+  .ai-side-head p { font-size:11.5px; color:#767c8f; margin-top:4px; }
+  .ai-body { flex:1; padding:18px 20px; overflow-y:auto; }
+  .empty-ai {
+    border:1px dashed #333a4c; border-radius:12px; padding:26px 18px;
+    text-align:center; color:#767c8f; font-size:13px; line-height:1.6; margin-top:8px;
+  }
+  .empty-ai .big { font-size:26px; margin-bottom:8px; }
+  .btn-explain {
+    width:100%; margin-top:14px;
+    background:linear-gradient(135deg,#e8b36a,#cf8a45); color:#241a0c; border:none;
+    padding:12px; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer;
+    transition:transform .12s; box-shadow:0 4px 16px rgba(207,138,69,.22);
+  }
+  .btn-explain:active { transform:scale(.97); }
+  .btn-explain:disabled { opacity:.45; cursor:default; }
+  .context-note { font-size:11px; color:#6b7185; text-align:center; margin-top:9px; }
+  /* shimmer */
+  .shimmer-card { border:1px solid #2e3547; border-radius:12px; padding:16px; margin-top:6px; }
+  .shimmer { position:relative; overflow:hidden; background:#242a38; border-radius:6px; height:12px; margin-bottom:10px; }
+  .shimmer::after {
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(90deg,transparent,rgba(232,179,106,.22),transparent);
+    animation:sweep 1.3s infinite;
+  }
+  @keyframes sweep { from{transform:translateX(-100%)} to{transform:translateX(100%)} }
+  .shimmer.w60{width:60%} .shimmer.w90{width:90%} .shimmer.w75{width:75%}
+  .thinking-row { display:flex; align-items:center; gap:9px; color:#9aa0b2; font-size:12.5px; margin-bottom:14px; }
+  .spinner { width:14px; height:14px; border:2px solid #3a4358; border-top-color:#e8b36a; border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  /* AI answer card */
+  .answer-card { border:1px solid #3a4358; border-radius:12px; padding:16px; background:#202534; animation:cardIn .5s ease; }
+  @keyframes cardIn { from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:translateY(0)} }
+  .answer-card .label {
+    font-size:10.5px; font-weight:700; letter-spacing:.8px; text-transform:uppercase;
+    color:#9fc48f; margin-bottom:9px; display:flex; align-items:center; gap:6px;
+  }
+  .answer-card .label .src { color:#767c8f; font-weight:500; letter-spacing:.3px; text-transform:none; }
+  .answer-card p { font-size:13.5px; line-height:1.65; color:#d7d2c4; }
+  .answer-card .quote {
+    margin:12px 0; padding:10px 14px; background:rgba(232,179,106,.09);
+    border-left:3px solid #e8b36a; border-radius:0 8px 8px 0;
+    font-family:Georgia,serif; font-style:italic; font-size:13.5px; color:#e6d9bd;
+  }
+  .grounded {
+    display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#9fc48f;
+    margin-top:10px; font-weight:600;
+  }
+  .answer-actions { display:flex; gap:8px; margin-top:14px; }
+  .btn-ghost-s {
+    flex:1; background:#262d3d; border:1px solid #333b4f; color:#cfd4e2;
+    padding:9px; border-radius:9px; font-size:12.5px; cursor:pointer; font-weight:600;
+    transition:background .15s;
+  }
+  .btn-ghost-s:hover { background:#2d3547; }
+  .btn-ghost-s:active { transform:scale(.97); }
+  .btn-ghost-s.saved { border-color:#5d9a68; color:#9fc48f; }
+  /* Kokoro voice bar */
+  .kokoro-bar {
+    margin-top:14px; border:1px solid #3a4358; border-radius:12px; padding:13px 14px;
+    background:#202534; display:none; animation:cardIn .4s ease;
+  }
+  .kokoro-bar.show { display:block; }
+  .kokoro-bar .krow { display:flex; align-items:center; gap:10px; }
+  .kokoro-ico {
+    width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(135deg,#e8b36a,#cf8a45);
+    display:flex; align-items:center; justify-content:center; font-size:15px;
+  }
+  .kokoro-bar b { font-size:13px; color:#e8e4da; display:block; }
+  .kokoro-bar .sub { font-size:11px; color:#767c8f; }
+  .eq { display:flex; gap:2.5px; align-items:flex-end; height:16px; margin-left:auto; }
+  .eq i { width:3px; background:#e8b36a; border-radius:2px; animation:eq 1s infinite ease-in-out; }
+  .eq i:nth-child(2){animation-delay:.15s} .eq i:nth-child(3){animation-delay:.3s}
+  .eq i:nth-child(4){animation-delay:.45s} .eq i:nth-child(5){animation-delay:.6s}
+  @keyframes eq { 0%,100%{height:4px} 50%{height:16px} }
+  .eq.paused i { animation-play-state:paused; height:4px; }
+  /* ---------- SCREEN 3: INSIGHTS ---------- */
+  .ins-main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .ins-scroll { flex:1; overflow-y:auto; padding:30px 36px; }
+  .ins-head h1 { font-size:23px; font-weight:700; }
+  .ins-head p { color:#8b90a0; font-size:13.5px; margin-top:5px; }
+  .takeaway {
+    margin-top:24px; border-radius:16px; padding:24px 26px;
+    background:linear-gradient(135deg,#2a2418,#1f1d15);
+    border:1px solid #5a4a28; position:relative; overflow:hidden;
+  }
+  .takeaway::before {
+    content:''; position:absolute; top:-40px; right:-40px; width:180px; height:180px;
+    background:radial-gradient(circle,rgba(232,179,106,.18),transparent 70%);
+  }
+  .takeaway .tk-label { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#e8b36a; }
+  .takeaway h2 { font-size:19px; margin:10px 0 8px; color:#f5edd9; line-height:1.45; }
+  .takeaway p { font-size:13.5px; color:#b3a98e; line-height:1.6; }
+  .takeaway .quote { margin-top:14px; font-family:Georgia,serif; font-style:italic; color:#d8c9a5; font-size:14px; border-left:3px solid #e8b36a; padding-left:14px; }
+  .ins-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:20px; }
+  .stat-card { background:#1e222d; border:1px solid #2a3040; border-radius:13px; padding:16px 18px; }
+  .stat-card .v { font-size:22px; font-weight:800; color:#e8e4da; }
+  .stat-card .k { font-size:11.5px; color:#767c8f; margin-top:3px; }
+  .saved-list { margin-top:22px; }
+  .saved-row {
+    display:flex; align-items:center; gap:14px; background:#1e222d;
+    border:1px solid #2a3040; border-radius:12px; padding:13px 16px; margin-bottom:10px;
+    animation:cardIn .5s ease;
+  }
+  .saved-row .ic { width:34px; height:34px; border-radius:9px; background:#262d3d; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
+  .saved-row .tx { font-size:13px; color:#cfcabd; line-height:1.45; }
+  .saved-row .when { margin-left:auto; font-size:11px; color:#6b7185; flex-shrink:0; }
+  .footbar {
+    flex-shrink:0; padding:14px 36px 22px; display:flex; gap:12px; align-items:center;
+  }
+  .btn-secondary {
+    background:#262d3d; border:1px solid #333b4f; color:#e8e4da; border-radius:10px;
+    padding:11px 20px; font-size:13.5px; font-weight:600; cursor:pointer; transition:transform .12s;
+  }
+  .btn-secondary:active { transform:scale(.97); }
+  .demo-path { margin-left:auto; font-size:11.5px; color:#6b7185; }
+  /* ---------- TOAST ---------- */
+  .toast {
+    position:absolute; bottom:26px; left:50%; transform:translate(-50%,80px);
+    background:#232936; border:1px solid #3a4358; color:#e8e4da;
+    padding:13px 22px; border-radius:12px; font-size:13.5px; font-weight:600;
+    display:flex; align-items:center; gap:10px;
+    box-shadow:0 12px 40px rgba(0,0,0,.5);
+    transition:transform .45s cubic-bezier(.2,.9,.3,1.2); z-index:50; white-space:nowrap;
+  }
+  .toast.show { transform:translate(-50%,0); }
+  .toast .ck { color:#9fc48f; font-size:15px; }
+  /* progress dots (scripted journey) */
+  .journey {
+    position:absolute; top:56px; right:18px; display:flex; gap:6px; z-index:40;
+  }
+  .journey i { width:22px; height:4px; border-radius:4px; background:#2c313d; transition:background .3s; }
+  .journey i.on { background:#e8b36a; }
+</style>
+</head>
+<body>
+
+<div class="scale-wrap" id="scaleWrap">
+  <div class="window-shell" id="shell">
+
+    <div class="titlebar">
+      <div class="traffic"><i></i><i></i><i></i></div>
+      <div class="title">ReadAny</div>
+      <div class="demo-tag">INTERACTIVE DEMO</div>
+    </div>
+
+    <div class="journey"><i id="j1" class="on"></i><i id="j2"></i><i id="j3"></i><i id="j4"></i></div>
+
+    <div class="app-body">
+
+      <!-- ============ SCREEN 1 · LIBRARY ============ -->
+      <div class="screen active" id="screen-1">
+        <aside class="sidebar">
+          <div class="brand"><div class="logo">R</div><b>ReadAny</b></div>
+          <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Library</div>
+          <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Reading now</div>
+          <div class="nav-item" onclick="goto(3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 4 12.7c-.6.5-1 1.4-1 2.3v.5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V17c0-.9-.4-1.8-1-2.3A7 7 0 0 1 12 2z"/></svg>Insights</div>
+          <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Search</div>
+          <div class="spacer"></div>
+          <div class="ai-chip"><b>✦ Free AI included</b>Grounded chat with Gemini Flash-Lite. No key, no account.</div>
+        </aside>
+        <div class="lib-main">
+          <div class="lib-head">
+            <div class="row">
+              <div>
+                <h1>Good morning, Sam</h1>
+                <p>4 books · 1 chapter left in <i>Meditations</i> · AI insights ready on 3 books</p>
+              </div>
+              <button class="btn-primary" onclick="goto(2)">Continue reading →</button>
+            </div>
+          </div>
+          <div class="book-grid">
+            <div class="book-card" onclick="goto(2)">
+              <div class="book-cover" style="background:linear-gradient(160deg,#5a4a3a,#2e2620)"><span class="badge-ai">✦ AI READY</span><div><div class="t">Meditations</div><div class="a">Marcus Aurelius</div></div></div>
+              <div class="book-meta"><span>92%</span><span class="progress-pill">1 ch left</span></div>
+            </div>
+            <div class="book-card" onclick="goto(2)">
+              <div class="book-cover" style="background:linear-gradient(160deg,#2d4a56,#1b2d34)"><span class="badge-ai">✦ AI READY</span><div><div class="t">Moby Dick</div><div class="a">Herman Melville</div></div></div>
+              <div class="book-meta"><span>38%</span><span class="progress-pill">Ch. 41</span></div>
+            </div>
+            <div class="book-card" onclick="goto(2)">
+              <div class="book-cover" style="background:linear-gradient(160deg,#4a3a5a,#241d2e)"><div><div class="t">The Art of War</div><div class="a">Sun Tzu</div></div></div>
+              <div class="book-meta"><span>100%</span><span class="progress-pill">Done</span></div>
+            </div>
+            <div class="book-card" onclick="goto(2)">
+              <div class="book-cover" style="background:linear-gradient(160deg,#3a5a44,#1d2e22)"><div><div class="t">Self-Reliance</div><div class="a">R. W. Emerson</div></div></div>
+              <div class="book-meta"><span>12%</span><span class="progress-pill">New</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ SCREEN 2 · READER + AI ============ -->
+      <div class="screen" id="screen-2">
+        <div class="reader">
+          <div class="reader-main">
+            <div class="reader-top">
+              <span class="crumb"><b>Meditations</b> · Book Two</span>
+              <span style="margin-left:auto">Page 47 of 254</span>
+            </div>
+            <div class="reader-page">
+              <div class="page-inner">
+                <h2>On the dawn of duty</h2>
+                <p class="drop">When thou risest in the morning, think with thyself what proper work it is that thou hast to do, and remember that it is not opinion that makes the difference in the nature of things, but the nature of the things themselves.</p>
+                <div class="passage" id="passage">
+                  “Concentrate every minute like a Roman — on doing what's in front of you with precise and genuine seriousness, treating what's in front of you as though it were your final act. Nothing outside your own mind can properly upset you.”
+                  <span class="hint" id="passageHint">✦ Select this passage to ask the AI</span>
+                </div>
+                <p>For no other thing has the power to trouble thee but thy own opinion; for this being withdrawn, thou standest firm and secure against all things. Aim not at the necessities of life, but at the things which are truly necessary for the mind.</p>
+                <p>The impediment to action advances action. What stands in the way becomes the way.</p>
+              </div>
+            </div>
+          </div>
+          <aside class="ai-side">
+            <div class="ai-side-head">
+              <h3><span class="dot-live"></span>AI Companion <span style="font-weight:400;color:#767c8f;font-size:11.5px">· gemini-3.1-flash-lite</span></h3>
+              <p>Answers are grounded in this book's text — every claim cites a verbatim quote.</p>
+            </div>
+            <div class="ai-body">
+              <div class="empty-ai" id="emptyAi">
+                <div class="big">✦</div>
+                Ask anything about <b>Meditations</b>,<br>or click the highlighted passage.
+              </div>
+              <button class="btn-explain" id="btnExplain" onclick="explain()">✦ Explain this passage</button>
+              <div class="context-note">AI reads the surrounding pages for context</div>
+              <div id="aiSlot"></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <!-- ============ SCREEN 3 · INSIGHTS ============ -->
+      <div class="screen" id="screen-3">
+        <aside class="sidebar">
+          <div class="brand"><div class="logo">R</div><b>ReadAny</b></div>
+          <div class="nav-item" onclick="goto(1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Library</div>
+          <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Reading now</div>
+          <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 4 12.7c-.6.5-1 1.4-1 2.3v.5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V17c0-.9-.4-1.8-1-2.3A7 7 0 0 1 12 2z"/></svg>Insights</div>
+          <div class="spacer"></div>
+          <div class="ai-chip"><b>✦ 12 insights saved</b>Across 3 books this month.</div>
+        </aside>
+        <div class="ins-main">
+          <div class="ins-scroll">
+            <div class="ins-head">
+              <h1>Your insights</h1>
+              <p>Every AI answer you saved, distilled into one page.</p>
+            </div>
+            <div class="takeaway">
+              <div class="tk-label">✦ Weekly takeaway · Meditations</div>
+              <h2>You highlight constraint, not comfort. Your reading points at one theme: <u>attention is the last true freedom.</u></h2>
+              <p>Across 6 saved passages, the AI found a single thread — mastery of the present act. Your highlights from <i>Moby Dick</i> echo it from the opposite direction: Ahab's tragedy is attention surrendered to obsession.</p>
+              <div class="quote">“Concentrate every minute like a Roman — on doing what's in front of you with precise and genuine seriousness.”</div>
+            </div>
+            <div class="ins-grid">
+              <div class="stat-card"><div class="v">12</div><div class="k">Insights saved</div></div>
+              <div class="stat-card"><div class="v">4h 20m</div><div class="k">Read this week</div></div>
+              <div class="stat-card"><div class="v">3</div><div class="k">Books with AI notes</div></div>
+            </div>
+            <div class="saved-list" id="savedList">
+              <div class="saved-row"><div class="ic">✦</div><div class="tx"><b>Meditations · Book Two</b> — Nothing outside your mind can upset you; only opinion can.</div><div class="when">just now</div></div>
+              <div class="saved-row"><div class="ic">📄</div><div class="tx"><b>Moby Dick · Ch. 41</b> — The whiteness of the whale as the terror of meaninglessness.</div><div class="when">2 days ago</div></div>
+              <div class="saved-row"><div class="ic">📄</div><div class="tx"><b>The Art of War · III</b> — Supreme excellence: winning without fighting.</div><div class="when">5 days ago</div></div>
+            </div>
+          </div>
+          <div class="footbar">
+            <button class="btn-secondary" onclick="exportInsight()">Export insight as Markdown ↓</button>
+            <button class="btn-secondary" style="background:transparent" onclick="resetDemo()">↺ Reset demo</button>
+            <span class="demo-path">Demo path: Library → Reader → AI answer → Insight (60–90 sec)</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="toast" id="toast"><span class="ck">✔</span><span id="toastMsg">Insight saved</span></div>
+  </div>
+</div>
+
+<script>
+/* ============ RATIO GUARD: scale whole 1440x900 shell, never resize it ============ */
+const BASE_W = 1440 + 80, BASE_H = 900 + 80; // breathing room
+function fitScale(){
+  const s = Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H, 1);
+  document.getElementById('scaleWrap').style.transform = 'scale(' + s + ')';
+}
+window.addEventListener('resize', fitScale); fitScale();
+
+/* ============ journey ============ */
+let screen = 1;
+function goto(n){
+  if(n === screen) return;
+  const dir = n > screen ? '' : 'back';
+  document.querySelectorAll('.screen').forEach(el => { el.classList.remove('active','back'); });
+  const el = document.getElementById('screen-' + n);
+  if(dir === 'back'){ el.style.transform=''; el.classList.add('back'); requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('active'))); }
+  else el.classList.add('active');
+  screen = n;
+  for(let i=1;i<=4;i++) document.getElementById('j'+i).classList.toggle('on', i<=Math.min(n,4));
+}
+function toast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ============ the AI magic moment ============ */
+let explained = false, saved = false;
+function explain(){
+  if(explained) return; explained = true;
+  const slot = document.getElementById('aiSlot');
+  document.getElementById('emptyAi').style.display = 'none';
+  const btn = document.getElementById('btnExplain');
+  btn.disabled = true; btn.textContent = '✦ Thinking…';
+  document.getElementById('passageHint').textContent = '✦ Asked about this passage';
+
+  // loading shimmer (~1.4s)
+  slot.innerHTML =
+    '<div class="shimmer-card">' +
+      '<div class="thinking-row"><span class="spinner"></span>Reading pages 45–49 · grounding answer…</div>' +
+      '<div class="shimmer w90"></div><div class="shimmer w75"></div><div class="shimmer w60"></div>' +
+    '</div>';
+
+  setTimeout(() => {
+    slot.innerHTML =
+      '<div class="answer-card">' +
+        '<div class="label">✦ GROUNDED ANSWER <span class="src">· 4 quotes found</span></div>' +
+        '<p>Marcus is making an <b>attention</b> argument: suffering enters through judgment, not through events. The fortress is the present act — "nothing outside your own mind can properly upset you" is a claim about where control actually lives.</p>' +
+        '<div class="quote">“Nothing outside your own mind can properly upset you.” — p. 47</div>' +
+        '<p>In practical terms: treat the task in front of you as the whole world. The rest — reputation, memory, anticipation — is opinion, and opinion is optional.</p>' +
+        '<span class="grounded">✔ Verbatim source quotes verified · no hallucination</span>' +
+        '<div class="answer-actions">' +
+          '<button class="btn-ghost-s" id="btnListen" onclick="kokoro()">🔊 Kokoro voice</button>' +
+          '<button class="btn-ghost-s" id="btnSave" onclick="saveInsight()">💾 Save insight</button>' +
+        '</div>' +
+        '<div class="kokoro-bar" id="kokoroBar">' +
+          '<div class="krow">' +
+            '<div class="kokoro-ico">🎵</div>' +
+            '<div><b>Kokoro TTS · af_heart</b><span class="sub">reading the answer aloud…</span></div>' +
+            '<div class="eq" id="eq"><i></i><i></i><i></i><i></i><i></i></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    btn.textContent = '✦ Explained — ask another passage anytime';
+    toast('AI answer grounded in Meditations · p. 47');
+  }, 1400);
+}
+
+/* ============ Kokoro voice moment (browser speech engine, Kokoro branding) ============ */
+let speaking = false;
+function kokoro(){
+  const bar = document.getElementById('kokoroBar');
+  const eq = document.getElementById('eq');
+  bar.classList.add('show');
+  if(speaking) return; speaking = true;
+  try{
+    const u = new SpeechSynthesisUtterance(
+      'Marcus is making an attention argument. Suffering enters through judgment, not through events. Nothing outside your own mind can properly upset you.'
+    );
+    u.rate = 0.98; u.pitch = 1.05;
+    const vs = speechSynthesis.getVoices();
+    const pick = vs.find(v => /female|samantha|zira|aria|jenny/i.test(v.name)) || vs[0];
+    if(pick) u.voice = pick;
+    u.onend = u.onerror = () => { speaking=false; eq.classList.add('paused'); bar.querySelector('.sub').textContent='read complete'; toast('Kokoro read-aloud finished'); };
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch(e){
+    setTimeout(()=>{ speaking=false; eq.classList.add('paused'); }, 3500);
+  }
+}
+
+/* ============ save + insight screen ============ */
+function saveInsight(){
+  if(saved) return; saved = true;
+  const b = document.getElementById('btnSave');
+  b.classList.add('saved'); b.textContent = '✔ Saved';
+  toast('Insight saved');
+  setTimeout(()=>goto(3), 700);
+}
+function exportInsight(){
+  toast('Exported: meditations-insight.md');
+}
+function resetDemo(){
+  explained = saved = false; speaking = false;
+  try{ speechSynthesis.cancel(); }catch(e){}
+  document.getElementById('aiSlot').innerHTML = '';
+  document.getElementById('emptyAi').style.display = '';
+  const btn = document.getElementById('btnExplain');
+  btn.disabled = false; btn.textContent = '✦ Explain this passage';
+  document.getElementById('passageHint').textContent = '✦ Select this passage to ask the AI';
+  document.getElementById('kokoroBar') && document.getElementById('kokoroBar').remove();
+  goto(1);
+  toast('Demo reset');
+}
+document.addEventListener('click', e => {
+  const p = document.getElementById('passage');
+  if(screen === 2 && p && (p.contains(e.target))) explain();
+});
+/* warm up voices list (Chrome async quirk) */
+try{ speechSynthesis.getVoices(); }catch(e){}
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git push *)",
+      "Bash(gh run *)",
+      "Bash(xargs ls *)",
+      "Bash(gh release *)",
+      "Bash(gh issue *)",
+      "WebFetch(domain:gist.github.com)",
+      "Bash(git checkout *)",
+      "Bash(gh api *)",
+      "Bash(git pull *)",
+      "Bash(gh pr *)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(node scripts/bump-version.js 1.3.1)",
+      "Bash(pnpm install *)",
+      "Bash(pod install *)",
+      "Bash(cargo fetch *)",
+      "Bash(pnpm *)",
+      "Bash(APP_VARIANT=production pnpm exec eas build --profile production --platform ios --non-interactive --no-wait)",
+      "Read(//tmp/**)",
+      "Bash(node /Users/tuntuntutu/Project/ReadAny/scripts/bump-version.js --help)",
+      "Bash(git ls-remote *)",
+      "WebSearch",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('lang:', d.get\\('language'\\)\\); print\\('desc:', d.get\\('description'\\)\\); print\\('updated:', d.get\\('updated_at'\\)\\); print\\('stars:', d.get\\('stargazers_count'\\)\\)\")",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f['name'], f['type']\\) for f in d]\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f['name'], f['size']\\) for f in d if 'umd' in f['name'].lower\\(\\)]\")",
+      "Bash(python3 -c \"import json,sys; print\\('\\\\n'.join\\(json.load\\(sys.stdin\\).get\\('scripts', {}\\).keys\\(\\)\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('test:', d['scripts']['test']\\); print\\('vitest:', d.get\\('devDependencies',{}\\).get\\('vitest'\\)\\)\")",
+      "Bash(npx vitest *)",
+      "Bash(awk 'NR>=520 && NR<=580 {print NR\": \"$0}' /Users/tuntuntutu/Project/ReadAny/packages/app/src/stores/library-store.ts)",
+      "Bash(node *)"
+    ]
+  }
+}

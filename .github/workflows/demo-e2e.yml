@@ -1,0 +1,221 @@
+name: Demo E2E
+
+# End-to-end verification of the Gemini-first demo path, run on GitHub
+# runners (US IPs) because generativelanguage.googleapis.com rejects
+# datacenter IPs from several regions.
+#
+# Jobs:
+#   gemini-api   — the key in the GEMINI_API_KEY secret authenticates, lists
+#                  models, and answers a grounded question from a REAL PDF
+#                  (tests/fixtures/test-paper.pdf) to prove retrieval, not
+#                  hallucination.
+#   app-e2e      — full workspace install, core unit tests, web build, the
+#                  proxy-core contract tests, and the real-PDF import +
+#                  AI-retrieval flow against a locally proxied Gemini.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, cerebras-demo, demo]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # weekly key-liveness check (conserve free-tier quota)
+
+concurrency:
+  group: demo-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gemini-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Key liveness — list models (native surface, x-goog-api-key)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          code=$(curl -sS -o /tmp/models.json -w "%{http_code}" \
+            "https://generativelanguage.googleapis.com/v1beta/models" \
+            -H "x-goog-api-key: $GEMINI_API_KEY")
+          echo "HTTP $code"
+          jq '{models: (.models | length), first: .models[0].name}' /tmp/models.json || cat /tmp/models.json
+          test "$code" = 200
+      - name: OpenAI-compat surface — chat completion
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          # Prefer flash-LITE: gemini-3.8-flash free tier is 20 RPD (CI runs
+          # would exhaust it), flash-lite models get hundreds of RPD free.
+          MODEL=$(jq -r 'if any(.models[]; .name == "models/gemini-3.1-flash-lite") then "gemini-3.1-flash-lite" elif any(.models[]; .name == "models/gemini-3.8-flash") then "gemini-3.8-flash" else ([.models[].name | select(test("gemini-.*-flash"))] | map(select(test("tts|image|embedding|learnlang";"i") | not)) | .[0] | sub("^models/";"")) end' /tmp/models.json)
+          echo "Using model: $MODEL"
+          echo "$MODEL" > /tmp/model-name.txt
+          echo "$MODEL
+          gemini-3.5-flash
+          gemini-3.8-flash" > /tmp/model-candidates.txt
+          # Retry with backoff — gemini endpoints occasionally 503 ("high demand").
+          chat_call() {
+            curl -sS -o /tmp/chat.json -w "%{http_code}" \
+              "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" \
+              -H "Authorization: Bearer $GEMINI_API_KEY" -H "content-type: application/json" \
+              -d "{\"model\":\"$1\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly: OK\"}],\"max_completion_tokens\":2048}"
+          }
+          code=0
+          for attempt in 1 2 3 4; do
+            for m in $(cat /tmp/model-candidates.txt); do
+              code=$(chat_call "$m"); echo "attempt $attempt model $m → HTTP $code"
+              if [ "$code" = 200 ]; then echo "$m" > /tmp/model-name.txt; break 2; fi
+            done
+            [ "$code" = 200 ] && break
+            sleep $((attempt * 15))
+          done
+          head -c 400 /tmp/chat.json; echo
+          if [ "$code" = 429 ]; then
+            echo "SOFT PASS: quota exhausted (429) — key authenticated but free-tier quota is out until reset"
+            exit 0
+          fi
+          test "$code" = 200
+          jq -re '.choices[0].message.content' /tmp/chat.json | grep -qi "ok"
+      - name: Grounded answer from a real PDF (retrieval, not hallucination)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          pip install pypdf -q
+          python3 - <<'PY'
+          from pypdf import PdfReader
+          r = PdfReader("tests/fixtures/test-paper.pdf")
+          text = "\n".join(p.extract_text() for p in r.pages)
+          assert len(text) > 200, f"PDF text extraction too short: {len(text)}"
+          open("/tmp/pdf-text.txt", "w").write(text[:60000])
+          print(f"extracted {len(text)} chars from {len(r.pages)} pages")
+          print("---- first 500 chars ----")
+          print(text[:500])
+          PY
+          # Ask for a verbatim sentence from the PDF plus one fact NOT in it.
+          python3 - <<'PY'
+          import json, os, time, urllib.error, urllib.request
+          key = os.environ["GEMINI_API_KEY"]
+          text = open("/tmp/pdf-text.txt").read()
+          body = {
+              "contents": [{"parts": [{"text":
+                  "You are given the text of a document. Answer ONLY from the document. "
+                  "1) Quote verbatim one sentence containing the word 'the' from the FIRST page. "
+                  "2) State the document's main topic in one sentence.\n\nDOCUMENT:\n" + text}]}]
+          }
+          model = open("/tmp/model-name.txt").read().strip()
+          answer = None
+          for attempt in range(5):
+              req = urllib.request.Request(
+                  f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                  data=json.dumps(body).encode(), method="POST",
+                  headers={"x-goog-api-key": key, "content-type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=120) as r:
+                      out = json.load(r)
+                  answer = out["candidates"][0]["content"]["parts"][0]["text"]
+                  break
+              except urllib.error.HTTPError as e:
+                  print(f"attempt {attempt}: HTTP {e.code} {e.read()[:150]}")
+                  if e.code == 429:
+                      # Free-tier quota exhausted — the key itself is valid
+                      # (models list + chat already returned 200 above).
+                      # Soft-pass so the weekly cron doesn't run red until
+                      # the daily quota resets (midnight Pacific).
+                      print("SOFT PASS: quota exhausted (429) — key is valid, demo unaffected after reset")
+                      open("/tmp/grounding.skip", "w").write("429")
+                      import sys; sys.exit(0)
+                  if e.code >= 500 and attempt < 4:
+                      time.sleep(20 * (attempt + 1))
+                      continue
+                  raise
+          print("=== model answer ===")
+          print(answer)
+          open("/tmp/answer.txt", "w").write(answer)
+          PY
+          # Skip the verification too when the grounding request soft-passed.
+          if [ -f /tmp/grounding.skip ]; then echo "grounding skipped (quota)"; exit 0; fi
+          # The verbatim quote must actually appear in the extracted PDF text.
+          python3 - <<'PY'
+          import re
+          answer = open("/tmp/answer.txt").read()
+          pdf = open("/tmp/pdf-text.txt").read()
+          quotes = re.findall(r'"([^"\n]{20,})"', answer)
+          assert quotes, "model returned no quoted sentence"
+          norm = lambda s: re.sub(r"\s+", " ", s).strip().lower()
+          hit = any(norm(q) in norm(pdf) for q in quotes)
+          for q in quotes: print(("HIT " if norm(q) in norm(pdf) else "MISS") + " | " + q[:120])
+          assert hit, "no quoted sentence found verbatim in the PDF — possible hallucination"
+          print("GROUNDING CHECK PASSED: quote found verbatim in the real PDF text")
+          PY
+
+  app-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          # 24 needed by scripts/serve-dist.mjs: it imports netlify TS edge
+          # functions directly and relies on Node's built-in type stripping.
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Core unit tests
+        run: pnpm test:core
+      - name: Proxy contract tests (key-swap semantics)
+        run: |
+          # vitest suite covering proxy credential families lives in core
+          pnpm --filter @readany/core test 2>&1 | tail -20
+      - name: Build web app (READANY_WEB=1, the Netlify build path)
+        run: |
+          export NODE_OPTIONS="--max-old-space-size=1792"
+          READANY_WEB=1 pnpm --filter app build:web
+      - name: Netlify build simulation (landing + dist assembly)
+        run: bash scripts/netlify-build.sh
+      - name: Serve dist and verify SPA + landing + proxy wiring
+        run: |
+          node scripts/serve-dist.mjs & echo $! > /tmp/serve.pid
+          sleep 3
+          code=$(curl -sS -o /tmp/land.html -w "%{http_code}" http://127.0.0.1:8788/)
+          echo "landing HTTP $code"; test "$code" = 200
+          grep -qi "readany" /tmp/land.html
+          code=$(curl -sS -o /tmp/app.html -w "%{http_code}" http://127.0.0.1:8788/app/)
+          echo "app shell HTTP $code"; test "$code" = 200
+          # proxy must swap the "proxy" placeholder for the server key (US IP works here)
+          code=$(curl -sS -o /tmp/px.json -w "%{http_code}" \
+            "http://127.0.0.1:8788/gemini-api/v1beta/models?key=proxy")
+          echo "proxied models HTTP $code"
+          jq '{models: (.models | length)}' /tmp/px.json || head -c 300 /tmp/px.json
+          test "$code" = 200
+          kill "$(cat /tmp/serve.pid)"
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_TARGET: https://generativelanguage.googleapis.com
+      - name: No-env key path — proxy must fail fast with a readable 503
+        # The gist key broker was removed (its URL was committed to this public
+        # repo). With no GEMINI_API_KEY env the proxy now has NO server key:
+        # it must answer 503 with the readable "demo AI is temporarily
+        # unavailable" JSON instead of leaking an opaque upstream 400, and
+        # BYOK credentials must still pass through untouched.
+        run: |
+          env -u GEMINI_API_KEY node scripts/serve-dist.mjs & echo $! > /tmp/serve2.pid
+          sleep 3
+          code=$(curl -sS -o /tmp/px2.json -w "%{http_code}" \
+            "http://127.0.0.1:8788/gemini-api/v1beta/models?key=proxy")
+          echo "keyless proxied models HTTP $code"
+          head -c 300 /tmp/px2.json
+          test "$code" = 503
+          jq -re '.error.message' /tmp/px2.json | grep -qi "temporarily unavailable"
+          # BYOK still works on the keyless proxy (401/200 from Google proves
+          # the placeholder swap didn't eat a real credential)
+          code=$(curl -sS -o /tmp/px4.json -w "%{http_code}" \
+            "http://127.0.0.1:8788/gemini-api/v1beta/models" \
+            -H "x-goog-api-key: byok-placeholder-key")
+          echo "keyless proxy + BYOK header → upstream HTTP $code (expect 400/401 from Google, not 503)"
+          test "$code" != "503"
+          kill "$(cat /tmp/serve2.pid)"
+        env:
+          GEMINI_API_TARGET: https://generativelanguage.googleapis.com
