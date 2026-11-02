@@ -1,0 +1,128 @@
+{
+  "onboarding": {
+    "skip": "건너뛰기",
+    "skipForNow": "나중에 하기",
+    "getStarted": "시작하기",
+    "welcome": {
+      "ai": "AI 독서 어시스턴트",
+      "aiDesc": "책과 캐릭터와의 자연스러운 대화",
+      "search": "스마트 시맨틱 검색",
+      "searchDesc": "책 속 모든 개념을 정확하게 찾아요",
+      "f1": {
+        "title": "AI 독서 어시스턴트",
+        "desc": "책 속 캐릭터와 관점에 대해 직접 대화해요"
+      },
+      "f2": {
+        "title": "시맨틱 검색",
+        "desc": "키워드뿐 아니라 모든 개념을 찾아요"
+      },
+      "f3": {
+        "title": "이중 언어 읽기",
+        "desc": "모든 텍스트에 대한 매끄러운 분할 화면 번역"
+      },
+      "title": "ReadAny에 오신 걸 환영해요",
+      "desc": "스마트한 독서 동반자예요. 완벽한 독서 환경을 설정해볼까요.",
+      "subtitle": "스마트한 독서 동반자예요. 완벽한 독서 환경을 설정해볼까요.",
+      "translate": "즉시 이중 언어 번역",
+      "translateDesc": "매끄러운 나란히 읽기",
+      "start": "체험 시작"
+    },
+    "ai": {
+      "title": "AI 설정",
+      "desc": "AI 제공자를 설정하여 스마트 대화와 요약 기능을 활성화하세요.",
+      "test": "연결 테스트"
+    },
+    "appearance": {
+      "title": "모양 및 언어",
+      "desc": "ReadAny의 표시 언어와 테마를 선택하세요."
+    },
+    "sync": {
+      "title": "클라우드 동기화",
+      "desc": "WebDAV를 통해 기기 간 독서 진행률을 완벽하게 동기화하세요."
+    },
+    "translation": {
+      "title": "번역 엔진",
+      "desc": "매끄러운 이중 언어 읽기를 위해 선호하는 번역 엔진을 설정하세요.",
+      "aiProvider": "AI 번역",
+      "aiProviderDesc": "무료",
+      "deeplProviderName": "DeepL Pro",
+      "deeplDesc": "프리미엄",
+      "apiKeyPlaceholder": "DeepL API 키를 입력하세요"
+    },
+    "embedding": {
+      "title": "스마트 검색",
+      "desc": "강력한 시맨틱 검색을 활성화하기 위해 벡터 모델을 구성하세요",
+      "localMode": "로컬 내장 모드",
+      "localDesc": "기기에서 완전히 오프라인으로 실행돼요",
+      "remoteMode": "원격 API 모드",
+      "remoteDesc": "구성된 서버 측 연산을 사용해요",
+      "remoteInfo": "원격 API 설정",
+      "remoteInfoDesc": "원격 모드는 구성된 AI 제공자의 임베딩 API를 사용해요. 이전 단계에서 AI 제공자를 설정했는지 확인해주세요."
+    },
+    "complete": {
+      "title": "모든 준비가 끝났어요!",
+      "desc": "모든 설정이 완료되었어요. 설정에서 언제든지 이 옵션들을 수정할 수 있어요. 이제 책을 가져오거나, AI와 대화하거나, 탐색을 시작하세요!",
+      "start": "읽기 시작",
+      "feature1": "AI 채팅",
+      "feature2": "번역",
+      "feature3": "클라우드 동기화",
+      "feature4": "스마트 검색"
+    }
+  },
+  "tour": {
+    "next": "다음",
+    "prev": "이전",
+    "done": "완료",
+    "progress": "{{current}} / {{total}}",
+    "addBook": {
+      "title": "첫 번째 책 추가",
+      "desc": "여기를 클릭하여 EPUB, PDF 및 기타 지원 형식을 가져오세요."
+    },
+    "bookList": {
+      "title": "내 서재",
+      "desc": "가져온 모든 책이 여기에 표시돼요. 책을 클릭하면 읽기를 시작해요."
+    },
+    "vectorize": {
+      "title": "스마트 벡터화",
+      "desc": "강력한 AI 검색과 대화를 위한 시맨틱 인덱스를 구축해요."
+    },
+    "settings": {
+      "title": "설정",
+      "desc": "AI 제공자, 번역 엔진 등을 설정하세요."
+    },
+    "sync": {
+      "title": "멀티 플랫폼 동기화",
+      "desc": "WebDAV, S3, 또는 LAN 동기화를 선택하여 기기 간 서재를 동기화하세요. QR 코드 페어링으로 빠르게 설정할 수 있어요."
+    }
+  },
+  "readerTour": {
+    "prevPage": {
+      "title": "이전 페이지",
+      "desc": "왼쪽 영역을 클릭하거나 탭하면 이전 페이지로 이동해요."
+    },
+    "toolbar": {
+      "title": "도구 모음 토글",
+      "desc": "중앙 영역을 클릭하거나 탭하면 도구 모음을 표시/숨길 수 있어요. 상단이나 하단 가장자리에 마우스를 올려도 돼요."
+    },
+    "nextPage": {
+      "title": "다음 페이지",
+      "desc": "오른쪽 영역을 클릭하거나 탭하면 다음 페이지로 이동해요."
+    }
+  },
+  "commandPalette": {
+    "placeholder": "명령어를 검색하세요...",
+    "noResults": "\"{{query}}\"에 대한 결과가 없어요",
+    "hint": "설정 및 동작을 검색하세요",
+    "recent": "최근",
+    "settings": "설정",
+    "actions": "동작",
+    "navigation": "탐색"
+  },
+  "updater": {
+    "newVersion": "새 버전 사용 가능",
+    "isReady": "설치 준비 완료",
+    "install": "다운로드 및 설치",
+    "downloading": "다운로드 중...",
+    "relaunch": "재시작하여 업데이트"
+  }
+}

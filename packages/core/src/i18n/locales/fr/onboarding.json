@@ -1,0 +1,128 @@
+{
+  "onboarding": {
+    "skip": "Passer",
+    "skipForNow": "Passer pour l'instant",
+    "getStarted": "Commencer",
+    "welcome": {
+      "ai": "Assistant de lecture IA",
+      "aiDesc": "Conversations naturelles avec vos livres et personnages",
+      "search": "Recherche sémantique intelligente",
+      "searchDesc": "Trouvez précisément n'importe quel concept dans vos livres",
+      "f1": {
+        "title": "Assistant de lecture IA",
+        "desc": "Conversez directement avec les personnages et les points de vue du livre"
+      },
+      "f2": {
+        "title": "Recherche sémantique",
+        "desc": "Trouvez n'importe quel concept, pas seulement des mots-clés"
+      },
+      "f3": {
+        "title": "Lecture bilingue",
+        "desc": "Traduction en écran partagé fluide pour tout texte"
+      },
+      "title": "Bienvenue dans ReadAny",
+      "desc": "Votre compagnon de lecture intelligent. Configurons l'environnement de lecture parfait.",
+      "subtitle": "Votre compagnon de lecture intelligent. Configurons l'environnement de lecture parfait.",
+      "translate": "Traduction bilingue instantanée",
+      "translateDesc": "Lecture côte à côte fluide",
+      "start": "Commencer l'expérience"
+    },
+    "ai": {
+      "title": "Configuration IA",
+      "desc": "Configurez votre fournisseur IA pour activer le dialogue intelligent et la synthèse.",
+      "test": "Tester la connexion"
+    },
+    "appearance": {
+      "title": "Apparence et langue",
+      "desc": "Choisissez la langue d'affichage et les préférences de thème de ReadAny."
+    },
+    "sync": {
+      "title": "Synchronisation cloud",
+      "desc": "Gardez votre progression de lecture parfaitement synchronisée entre vos appareils via WebDAV."
+    },
+    "translation": {
+      "title": "Moteur de traduction",
+      "desc": "Configurez votre moteur de traduction préféré pour une lecture bilingue fluide.",
+      "aiProvider": "Traduction IA",
+      "aiProviderDesc": "Gratuit",
+      "deeplProviderName": "DeepL Pro",
+      "deeplDesc": "Premium",
+      "apiKeyPlaceholder": "Entrez votre clé API DeepL"
+    },
+    "embedding": {
+      "title": "Récupération intelligente",
+      "desc": "Configurez le modèle vectoriel pour activer une recherche sémantique puissante",
+      "localMode": "Mode local intégré",
+      "localDesc": "Fonctionne entièrement hors ligne sur votre appareil",
+      "remoteMode": "Mode API distante",
+      "remoteDesc": "Utilise le calcul côté serveur configuré",
+      "remoteInfo": "Configuration de l'API distante",
+      "remoteInfoDesc": "Le mode distant utilise l'API d'embedding de votre fournisseur IA configuré. Veuillez vous assurer d'avoir configuré un fournisseur IA à l'étape précédente."
+    },
+    "complete": {
+      "title": "Vous êtes prêt !",
+      "desc": "Toutes les configurations sont prêtes. Vous pouvez modifier ces options à tout moment dans les Paramètres. Vous pouvez maintenant importer des livres, discuter avec l'IA ou commencer à explorer !",
+      "start": "Commencer à lire",
+      "feature1": "Chat IA",
+      "feature2": "Traduction",
+      "feature3": "Sync cloud",
+      "feature4": "Recherche intelligente"
+    }
+  },
+  "tour": {
+    "next": "Suivant",
+    "prev": "Précédent",
+    "done": "Terminé",
+    "progress": "{{current}} sur {{total}}",
+    "addBook": {
+      "title": "Ajoutez votre premier livre",
+      "desc": "Cliquez ici pour importer des fichiers EPUB, PDF et autres formats pris en charge."
+    },
+    "bookList": {
+      "title": "Votre bibliothèque",
+      "desc": "Tous vos livres importés apparaîtront ici. Cliquez sur un livre pour commencer à lire."
+    },
+    "vectorize": {
+      "title": "Vectorisation intelligente",
+      "desc": "Construisez un index sémantique pour une recherche IA et un chat puissants."
+    },
+    "settings": {
+      "title": "Paramètres",
+      "desc": "Configurez le fournisseur IA, le moteur de traduction et plus encore."
+    },
+    "sync": {
+      "title": "Synchronisation multiplateforme",
+      "desc": "Choisissez WebDAV, S3 ou la synchronisation réseau local pour garder votre bibliothèque synchronisée entre vos appareils. Prise en charge de l'appairage par QR code pour une configuration rapide."
+    }
+  },
+  "readerTour": {
+    "prevPage": {
+      "title": "Page précédente",
+      "desc": "Cliquez ou appuyez sur la zone gauche pour aller à la page précédente."
+    },
+    "toolbar": {
+      "title": "Afficher/masquer la barre d'outils",
+      "desc": "Cliquez ou appuyez sur la zone centrale pour afficher/masquer la barre d'outils. Vous pouvez aussi survoler le bord supérieur ou inférieur."
+    },
+    "nextPage": {
+      "title": "Page suivante",
+      "desc": "Cliquez ou appuyez sur la zone droite pour aller à la page suivante."
+    }
+  },
+  "commandPalette": {
+    "placeholder": "Tapez pour rechercher des commandes...",
+    "noResults": "Aucun résultat trouvé pour « {{query}} »",
+    "hint": "Tapez pour rechercher des paramètres et actions",
+    "recent": "Récent",
+    "settings": "Paramètres",
+    "actions": "Actions",
+    "navigation": "Navigation"
+  },
+  "updater": {
+    "newVersion": "Nouvelle version disponible",
+    "isReady": "est prête à être installée",
+    "install": "Télécharger et installer",
+    "downloading": "Téléchargement...",
+    "relaunch": "Redémarrer pour mettre à jour"
+  }
+}

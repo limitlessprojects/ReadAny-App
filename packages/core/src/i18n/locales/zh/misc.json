@@ -1,0 +1,26 @@
+{
+  "vectorize": {
+    "title": "向量测试",
+    "chunks": "分块",
+    "vector": "向量",
+    "bm25": "BM25",
+    "hybrid": "混合",
+    "searchPlaceholder": "输入搜索内容...",
+    "search": "搜索",
+    "showingChunks": "显示该书所有分块...",
+    "searchResults": "{{tab}} 搜索结果将在此显示。",
+    "vectorizeBook": "向量化书籍",
+    "indexBook": "为 \"{{title}}\" 建立索引，启用 AI 搜索和分析。",
+    "complete": "向量化完成！",
+    "progress": "{{status}}... {{processed}}/{{total}} 分块",
+    "description": "将书籍拆分为分块并生成嵌入向量，用于语义搜索。",
+    "start": "开始向量化",
+    "notConfigured": "请先配置向量模型",
+    "notConfiguredDesc": "需要下载内置模型或配置远程向量模型后才能进行向量化。",
+    "goSettings": "去配置",
+    "unsupportedFormatTitle": "不支持的格式",
+    "unsupportedFormatDesc": "移动端向量化目前支持 EPUB、PDF、TXT 和 UMD 图书。",
+    "missingFileDesc": "本地书籍文件缺失，请先下载或重新导入。",
+    "prepareFailed": "向量化准备失败。"
+  }
+}

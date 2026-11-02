@@ -1,0 +1,128 @@
+{
+  "onboarding": {
+    "skip": "Omitir",
+    "skipForNow": "Omitir por ahora",
+    "getStarted": "Comenzar",
+    "welcome": {
+      "ai": "Asistente de lectura IA",
+      "aiDesc": "Conversaciones naturales con libros y personajes",
+      "search": "Búsqueda semántica inteligente",
+      "searchDesc": "Encuentra cualquier concepto en los libros con precisión",
+      "f1": {
+        "title": "Asistente de lectura IA",
+        "desc": "Conversación directa con personajes y puntos de vista del libro"
+      },
+      "f2": {
+        "title": "Búsqueda semántica",
+        "desc": "Encuentra cualquier concepto, no solo palabras clave"
+      },
+      "f3": {
+        "title": "Lectura bilingüe",
+        "desc": "Traducción fluida en pantalla dividida para cualquier texto"
+      },
+      "title": "Bienvenido a ReadAny",
+      "desc": "Tu compañero de lectura inteligente. Configuremos el entorno de lectura perfecto.",
+      "subtitle": "Tu compañero de lectura inteligente. Configuremos el entorno de lectura perfecto.",
+      "translate": "Traducción bilingüe instantánea",
+      "translateDesc": "Lectura lado a lado sin interrupciones",
+      "start": "Comenzar experiencia"
+    },
+    "ai": {
+      "title": "Configuración de IA",
+      "desc": "Configura tu proveedor de IA para habilitar diálogo inteligente y resúmenes.",
+      "test": "Probar conexión"
+    },
+    "appearance": {
+      "title": "Apariencia e idioma",
+      "desc": "Elige el idioma y las preferencias de tema de ReadAny."
+    },
+    "sync": {
+      "title": "Sincronización en la nube",
+      "desc": "Mantén tu progreso de lectura perfectamente sincronizado entre dispositivos mediante WebDAV."
+    },
+    "translation": {
+      "title": "Motor de traducción",
+      "desc": "Configura tu motor de traducción preferido para una lectura bilingüe fluida.",
+      "aiProvider": "Traducción con IA",
+      "aiProviderDesc": "Gratis",
+      "deeplProviderName": "DeepL Pro",
+      "deeplDesc": "Premium",
+      "apiKeyPlaceholder": "Ingresa tu clave API de DeepL"
+    },
+    "embedding": {
+      "title": "Recuperación inteligente",
+      "desc": "Configura el modelo vectorial para habilitar una potente búsqueda semántica",
+      "localMode": "Modo local integrado",
+      "localDesc": "Se ejecuta completamente sin conexión en tu dispositivo",
+      "remoteMode": "Modo API remoto",
+      "remoteDesc": "Usa computación del lado del servidor configurado",
+      "remoteInfo": "Configuración de API remota",
+      "remoteInfoDesc": "El modo remoto usa la API de embeddings de tu proveedor de IA configurado. Asegúrate de haber configurado un proveedor de IA en el paso anterior."
+    },
+    "complete": {
+      "title": "¡Todo listo!",
+      "desc": "Todas las configuraciones están listas. Puedes modificar estas opciones en cualquier momento en Configuración. Ahora puedes importar libros, chatear con la IA o comenzar a explorar.",
+      "start": "Comenzar a leer",
+      "feature1": "Chat con IA",
+      "feature2": "Traducción",
+      "feature3": "Sincronización en la nube",
+      "feature4": "Búsqueda inteligente"
+    }
+  },
+  "tour": {
+    "next": "Siguiente",
+    "prev": "Anterior",
+    "done": "Listo",
+    "progress": "{{current}} de {{total}}",
+    "addBook": {
+      "title": "Agrega tu primer libro",
+      "desc": "Haz clic aquí para importar EPUB, PDF y otros formatos compatibles."
+    },
+    "bookList": {
+      "title": "Tu biblioteca",
+      "desc": "Todos tus libros importados aparecerán aquí. Haz clic en cualquier libro para comenzar a leer."
+    },
+    "vectorize": {
+      "title": "Vectorización inteligente",
+      "desc": "Construye un índice semántico para búsqueda y chat con IA potente."
+    },
+    "settings": {
+      "title": "Configuración",
+      "desc": "Configura el proveedor de IA, motor de traducción y más."
+    },
+    "sync": {
+      "title": "Sincronización multiplataforma",
+      "desc": "Elige WebDAV, S3 o sincronización LAN para mantener tu biblioteca sincronizada entre dispositivos. Compatible con emparejamiento por código QR para configuración rápida."
+    }
+  },
+  "readerTour": {
+    "prevPage": {
+      "title": "Página anterior",
+      "desc": "Haz clic o toca el área izquierda para ir a la página anterior."
+    },
+    "toolbar": {
+      "title": "Alternar barra de herramientas",
+      "desc": "Haz clic o toca el área central para mostrar/ocultar la barra de herramientas. También puedes pasar el cursor por el borde superior o inferior."
+    },
+    "nextPage": {
+      "title": "Página siguiente",
+      "desc": "Haz clic o toca el área derecha para ir a la página siguiente."
+    }
+  },
+  "commandPalette": {
+    "placeholder": "Escribe para buscar comandos...",
+    "noResults": "No se encontraron resultados para \"{{query}}\"",
+    "hint": "Escribe para buscar ajustes y acciones",
+    "recent": "Recientes",
+    "settings": "Configuración",
+    "actions": "Acciones",
+    "navigation": "Navegación"
+  },
+  "updater": {
+    "newVersion": "Nueva versión disponible",
+    "isReady": "está lista para instalar",
+    "install": "Descargar e instalar",
+    "downloading": "Descargando...",
+    "relaunch": "Reiniciar para actualizar"
+  }
+}

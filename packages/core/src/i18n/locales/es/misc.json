@@ -1,0 +1,22 @@
+{
+  "vectorize": {
+    "title": "Prueba vectorial",
+    "chunks": "Fragmentos",
+    "vector": "Vector",
+    "bm25": "BM25",
+    "hybrid": "Híbrido",
+    "searchPlaceholder": "Ingresa consulta de búsqueda...",
+    "search": "Buscar",
+    "showingChunks": "Mostrando todos los fragmentos de este libro...",
+    "searchResults": "Los resultados de búsqueda de {{tab}} aparecerán aquí.",
+    "vectorizeBook": "Vectorizar libro",
+    "indexBook": "Indexar '{{title}}' para búsqueda y análisis potenciados por IA.",
+    "complete": "¡Vectorización completada!",
+    "progress": "{{status}}... {{processed}}/{{total}} fragmentos",
+    "description": "Esto dividirá el libro en fragmentos y generará embeddings para búsqueda semántica.",
+    "start": "Iniciar vectorización",
+    "notConfigured": "Configura un modelo vectorial primero",
+    "notConfiguredDesc": "Necesitas descargar un modelo integrado o configurar un modelo vectorial remoto antes de vectorizar.",
+    "goSettings": "Ir a configuración"
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "onboarding": {
+    "skip": "Skip",
+    "skipForNow": "Skip for now",
+    "getStarted": "Get Started",
+    "welcome": {
+      "ai": "AI Reading Assistant",
+      "aiDesc": "Natural conversations with books and characters",
+      "search": "Smart Semantic Search",
+      "searchDesc": "Find any concept in books precisely",
+      "f1": {
+        "title": "AI Reading Assistant",
+        "desc": "Direct conversation with book characters and viewpoints"
+      },
+      "f2": {
+        "title": "Semantic Search",
+        "desc": "Find any concept, not just keywords"
+      },
+      "f3": {
+        "title": "Bilingual Reading",
+        "desc": "Seamless split-screen translation for any text"
+      },
+      "title": "Welcome to ReadAny",
+      "desc": "Your intelligent reading companion. Let's set up the perfect reading environment.",
+      "subtitle": "Your intelligent reading companion. Let's set up the perfect reading environment.",
+      "translate": "Instant Bilingual Translation",
+      "translateDesc": "Seamless side-by-side reading",
+      "start": "Start Experience"
+    },
+    "ai": {
+      "title": "AI Configuration",
+      "desc": "Set up your AI provider to enable smart dialogue and summarization.",
+      "test": "Test Connection"
+    },
+    "appearance": {
+      "title": "Appearance & Language",
+      "desc": "Choose ReadAny's display language and theme preferences."
+    },
+    "sync": {
+      "title": "Cloud Sync",
+      "desc": "Keep your reading progress perfectly synced across devices via WebDAV."
+    },
+    "translation": {
+      "title": "Translation Engine",
+      "desc": "Configure your preferred translation engine for seamless bilingual reading.",
+      "aiProvider": "AI Translation",
+      "aiProviderDesc": "Free",
+      "deeplProviderName": "DeepL Pro",
+      "deeplDesc": "Premium",
+      "apiKeyPlaceholder": "Enter your DeepL API key"
+    },
+    "embedding": {
+      "title": "Smart Retrieval",
+      "desc": "Configure vector model to enable powerful semantic search",
+      "localMode": "Local Built-in Mode",
+      "localDesc": "Runs completely offline on your device",
+      "remoteMode": "Remote API Mode",
+      "remoteDesc": "Uses configured server-side computation",
+      "remoteInfo": "Remote API Configuration",
+      "remoteInfoDesc": "Remote mode uses the embedding API of your configured AI provider. Please ensure you have configured an AI provider in the previous step."
+    },
+    "complete": {
+      "title": "You're All Set!",
+      "desc": "All configurations are ready. You can modify these options anytime in Settings. Now you can import books, chat with AI, or start exploring!",
+      "start": "Start Reading",
+      "feature1": "AI Chat",
+      "feature2": "Translation",
+      "feature3": "Cloud Sync",
+      "feature4": "Smart Search"
+    }
+  },
+  "tour": {
+    "next": "Next",
+    "prev": "Previous",
+    "done": "Done",
+    "progress": "{{current}} of {{total}}",
+    "addBook": {
+      "title": "Add Your First Book",
+      "desc": "Click here to import EPUB, PDF, and other supported formats."
+    },
+    "bookList": {
+      "title": "Your Library",
+      "desc": "All your imported books will appear here. Click any book to start reading."
+    },
+    "vectorize": {
+      "title": "Smart Vectorization",
+      "desc": "Build a semantic index for powerful AI search and chat."
+    },
+    "settings": {
+      "title": "Settings",
+      "desc": "Configure AI provider, translation engine, and more."
+    },
+    "sync": {
+      "title": "Multi-Platform Sync",
+      "desc": "Choose WebDAV, S3, or LAN sync to keep your library in sync across devices. Supports QR code pairing for quick setup."
+    }
+  },
+  "readerTour": {
+    "prevPage": {
+      "title": "Previous Page",
+      "desc": "Click or tap the left area to go to the previous page."
+    },
+    "toolbar": {
+      "title": "Toggle Toolbar",
+      "desc": "Click or tap the center area to show/hide the toolbar. You can also hover at the top or bottom edge."
+    },
+    "nextPage": {
+      "title": "Next Page",
+      "desc": "Click or tap the right area to go to the next page."
+    }
+  },
+  "commandPalette": {
+    "placeholder": "Type to search commands...",
+    "noResults": "No results found for \"{{query}}\"",
+    "hint": "Type to search settings and actions",
+    "recent": "Recent",
+    "settings": "Settings",
+    "actions": "Actions",
+    "navigation": "Navigation"
+  },
+  "updater": {
+    "newVersion": "New version available",
+    "isReady": "is ready to install",
+    "install": "Download & Install",
+    "downloading": "Downloading...",
+    "relaunch": "Restart to update"
+  }
+}

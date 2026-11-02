@@ -1,0 +1,22 @@
+{
+  "vectorize": {
+    "title": "ベクトルテスト",
+    "chunks": "チャンク",
+    "vector": "ベクトル",
+    "bm25": "BM25",
+    "hybrid": "ハイブリッド",
+    "searchPlaceholder": "検索クエリを入力...",
+    "search": "検索",
+    "showingChunks": "この本のすべてのチャンクを表示中...",
+    "searchResults": "{{tab}}の検索結果がここに表示されます。",
+    "vectorizeBook": "本をベクトル化",
+    "indexBook": "「{{title}}」をインデックスしてAI検索と分析を有効にします。",
+    "complete": "ベクトル化が完了しました！",
+    "progress": "{{status}}... {{processed}}/{{total}}チャンク",
+    "description": "本をチャンクに分割し、セマンティック検索用の埋め込みを生成します。",
+    "start": "ベクトル化を開始",
+    "notConfigured": "先にベクトルモデルを設定してください",
+    "notConfiguredDesc": "ベクトル化する前に、組み込みモデルのダウンロードまたはリモートベクトルモデルの設定が必要です。",
+    "goSettings": "設定へ"
+  }
+}

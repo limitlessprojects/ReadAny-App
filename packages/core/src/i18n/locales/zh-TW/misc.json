@@ -1,0 +1,22 @@
+{
+  "vectorize": {
+    "title": "向量測試",
+    "chunks": "分塊",
+    "vector": "向量",
+    "bm25": "BM25",
+    "hybrid": "混合",
+    "searchPlaceholder": "輸入搜尋內容...",
+    "search": "搜尋",
+    "showingChunks": "顯示該書所有分塊...",
+    "searchResults": "{{tab}} 搜尋結果將在此顯示。",
+    "vectorizeBook": "向量化書籍",
+    "indexBook": "為 \"{{title}}\" 建立索引，啟用 AI 搜尋和分析。",
+    "complete": "向量化完成！",
+    "progress": "{{status}}... {{processed}}/{{total}} 分塊",
+    "description": "將書籍拆分為分塊並產生嵌入向量，用於語意搜尋。",
+    "start": "開始向量化",
+    "notConfigured": "請先設定向量模型",
+    "notConfiguredDesc": "需要下載內建模型或設定遠端向量模型後才能進行向量化。",
+    "goSettings": "去設定"
+  }
+}

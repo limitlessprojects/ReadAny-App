@@ -1,0 +1,22 @@
+{
+  "vectorize": {
+    "title": "벡터 테스트",
+    "chunks": "청크",
+    "vector": "벡터",
+    "bm25": "BM25",
+    "hybrid": "하이브리드",
+    "searchPlaceholder": "검색어 입력...",
+    "search": "검색",
+    "showingChunks": "이 책의 모든 청크를 표시하고 있어요...",
+    "searchResults": "{{tab}} 검색 결과가 여기에 표시돼요.",
+    "vectorizeBook": "책 벡터화",
+    "indexBook": "AI 기반 검색과 분석을 위해 '{{title}}'을(를) 인덱싱해요.",
+    "complete": "벡터화 완료!",
+    "progress": "{{status}}... {{processed}}/{{total}} 청크",
+    "description": "책을 청크로 분할하고 시맨틱 검색을 위한 임베딩을 생성해요.",
+    "start": "벡터화 시작",
+    "notConfigured": "먼저 벡터 모델을 설정해주세요",
+    "notConfiguredDesc": "벡터화하기 전에 내장 모델을 다운로드하거나 원격 벡터 모델을 구성해야 해요.",
+    "goSettings": "설정으로 이동"
+  }
+}

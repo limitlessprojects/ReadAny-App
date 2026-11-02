@@ -1,0 +1,26 @@
+{
+  "vectorize": {
+    "title": "Vector Test",
+    "chunks": "Chunks",
+    "vector": "Vector",
+    "bm25": "BM25",
+    "hybrid": "Hybrid",
+    "searchPlaceholder": "Enter search query...",
+    "search": "Search",
+    "showingChunks": "Showing all chunks for this book...",
+    "searchResults": "{{tab}} search results will appear here.",
+    "vectorizeBook": "Vectorize Book",
+    "indexBook": "Index '{{title}}' for AI-powered search and analysis.",
+    "complete": "Vectorization complete!",
+    "progress": "{{status}}... {{processed}}/{{total}} chunks",
+    "description": "This will split the book into chunks and generate embeddings for semantic search.",
+    "start": "Start Vectorization",
+    "notConfigured": "Please configure a vector model first",
+    "notConfiguredDesc": "You need to download a built-in model or configure a remote vector model before vectorizing.",
+    "goSettings": "Go to Settings",
+    "unsupportedFormatTitle": "Unsupported format",
+    "unsupportedFormatDesc": "Mobile vectorization currently supports EPUB, PDF, TXT, and UMD books.",
+    "missingFileDesc": "The local book file is missing. Please download or re-import it.",
+    "prepareFailed": "Failed to prepare vectorization."
+  }
+}

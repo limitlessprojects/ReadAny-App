@@ -1,0 +1,128 @@
+{
+  "onboarding": {
+    "skip": "直接跳過",
+    "skipForNow": "暫不設定",
+    "getStarted": "開始使用",
+    "welcome": {
+      "title": "歡迎來到 ReadAny",
+      "desc": "你的智慧閱讀夥伴。讓我們一起來搭建最佳的閱讀環境吧。",
+      "subtitle": "你的智慧閱讀夥伴。讓我們一起來搭建最佳的閱讀環境吧。",
+      "ai": "AI 閱讀助手",
+      "aiDesc": "與書籍和角色自然對話",
+      "search": "智慧語意檢索",
+      "searchDesc": "精準定位書中的任意概念",
+      "translate": "即時雙語翻譯",
+      "translateDesc": "無縫對照，流暢閱讀",
+      "start": "開始體驗",
+      "f1": {
+        "title": "AI 閱讀助手",
+        "desc": "與書中角色和觀點直接對話"
+      },
+      "f2": {
+        "title": "語意搜尋",
+        "desc": "尋找任意概念，而非僅限關鍵字"
+      },
+      "f3": {
+        "title": "雙語閱讀",
+        "desc": "任意文字的無縫分割畫面翻譯"
+      }
+    },
+    "appearance": {
+      "title": "外觀與語言",
+      "desc": "選擇 ReadAny 的顯示語言和主題偏好。"
+    },
+    "ai": {
+      "title": "AI 設定",
+      "desc": "設定你的 AI 服務商以啟用智慧對話和總結功能。",
+      "test": "測試連接"
+    },
+    "embedding": {
+      "title": "智慧檢索",
+      "desc": "設定向量模型，啟用強大的語意搜尋能力",
+      "remoteMode": "遠端 API 模式",
+      "remoteDesc": "使用已設定的服務端計算",
+      "remoteInfo": "遠端 API 設定",
+      "remoteInfoDesc": "遠端模式使用你設定的 AI 提供商的嵌入 API。請確保在上一步已設定好 AI 提供商。",
+      "localMode": "本機內建模式",
+      "localDesc": "在你的裝置上完全離線執行"
+    },
+    "translation": {
+      "title": "翻譯引擎",
+      "desc": "設定你偏好的翻譯引擎，實現無縫中外雙語對照閱讀。",
+      "aiProvider": "AI 翻譯",
+      "aiProviderDesc": "免費",
+      "deeplProviderName": "DeepL Pro",
+      "deeplDesc": "高級",
+      "apiKeyPlaceholder": "輸入你的 DeepL API 密鑰"
+    },
+    "sync": {
+      "title": "雲端同步",
+      "desc": "透過 WebDAV 讓你的閱讀進度在多個裝置間完美同步。"
+    },
+    "complete": {
+      "title": "大功告成！",
+      "desc": "所有設定已就緒。隨時可以在設定中修改這些選項。現在就可以匯入書籍、與 AI 對話或開始探索了！",
+      "start": "開始閱讀",
+      "feature1": "AI 對話",
+      "feature2": "翻譯",
+      "feature3": "雲端同步",
+      "feature4": "智慧搜尋"
+    }
+  },
+  "tour": {
+    "next": "下一步",
+    "prev": "上一步",
+    "done": "完成",
+    "progress": "第 {{current}} 步，共 {{total}} 步",
+    "addBook": {
+      "title": "新增你的第一本書",
+      "desc": "點擊這裡匯入 EPUB、PDF 等支援的格式。"
+    },
+    "bookList": {
+      "title": "你的書庫",
+      "desc": "所有匯入的書籍都會顯示在這裡。點擊任意書籍開始閱讀。"
+    },
+    "vectorize": {
+      "title": "智慧向量化",
+      "desc": "建構語意索引，實現強大的 AI 搜尋和對話。"
+    },
+    "settings": {
+      "title": "設定",
+      "desc": "設定 AI 提供商、翻譯引擎等。"
+    },
+    "sync": {
+      "title": "多平台同步",
+      "desc": "選擇 WebDAV、S3 或區域網路同步，讓你的書庫在不同裝置間保持同步。支援 QR Code 配對，快速完成設定。"
+    }
+  },
+  "readerTour": {
+    "prevPage": {
+      "title": "上一頁",
+      "desc": "點擊左側區域可以翻到上一頁。"
+    },
+    "toolbar": {
+      "title": "喚醒工具列",
+      "desc": "點擊中間區域可以顯示/隱藏工具列。也可以將滑鼠移到頂部或底部邊緣。"
+    },
+    "nextPage": {
+      "title": "下一頁",
+      "desc": "點擊右側區域可以翻到下一頁。"
+    }
+  },
+  "commandPalette": {
+    "placeholder": "搜尋指令...",
+    "noResults": "沒有找到 \"{{query}}\" 的結果",
+    "hint": "輸入關鍵字搜尋設定和操作",
+    "recent": "最近使用",
+    "settings": "設定",
+    "actions": "操作",
+    "navigation": "導覽"
+  },
+  "updater": {
+    "newVersion": "發現新版本",
+    "isReady": "已準備好安裝",
+    "install": "下載並安裝",
+    "downloading": "下載中...",
+    "relaunch": "重新啟動以更新"
+  }
+}
