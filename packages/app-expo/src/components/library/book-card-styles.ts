@@ -1,0 +1,136 @@
+import { type ThemeColors, fontSize, fontWeight, radius } from "@/styles/theme";
+import { StyleSheet } from "react-native";
+
+export function getBookCardMetrics(cardWidth: number) {
+  const coverWidth = cardWidth;
+  const coverHeight = coverWidth * (41 / 28);
+  return { coverWidth, coverHeight };
+}
+
+export const makeStyles = (colors: ThemeColors, cardWidth: number) => {
+  const { coverWidth, coverHeight } = getBookCardMetrics(cardWidth);
+
+  return StyleSheet.create({
+    container: { width: coverWidth },
+    coverWrap: {
+      width: coverWidth,
+      height: coverHeight,
+      borderRadius: radius.sm,
+      overflow: "hidden",
+      position: "relative",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    coverImage: { width: "100%", height: "100%", borderRadius: radius.sm },
+    spineOverlay: {
+      position: "absolute", top: 0, left: 0, bottom: 0,
+      width: "8%", flexDirection: "row", zIndex: 2,
+    },
+    spineStrip1: { width: "6%", height: "100%", backgroundColor: "rgba(0,0,0,0.10)" },
+    spineStrip2: { width: "8%", height: "100%", backgroundColor: "rgba(20,20,20,0.20)" },
+    spineStrip3: { width: "5%", height: "100%", backgroundColor: "rgba(240,240,240,0.40)" },
+    spineStrip4: { width: "18%", height: "100%", backgroundColor: "rgba(215,215,215,0.35)" },
+    spineStrip5: { width: "12%", height: "100%", backgroundColor: "rgba(150,150,150,0.25)" },
+    spineStrip6: { width: "20%", height: "100%", backgroundColor: "rgba(100,100,100,0.18)" },
+    spineStrip7: { width: "31%", height: "100%", backgroundColor: "rgba(175,175,175,0.12)" },
+    spineEdgeRight: {
+      position: "absolute", top: 0, right: -coverWidth * 0.92, bottom: 0,
+      width: coverWidth * 0.02, backgroundColor: "rgba(30,30,30,0.12)",
+    },
+    spineTopHighlight: {
+      position: "absolute", top: 0, left: 0, right: 0,
+      height: "3%", backgroundColor: "rgba(240,240,240,0.15)", zIndex: 3,
+    },
+    spineBottomShadow: {
+      position: "absolute", bottom: 0, left: 0, right: 0,
+      height: "8%", backgroundColor: "rgba(15,15,15,0.15)", zIndex: 3,
+    },
+    fallbackCover: { flex: 1, borderRadius: radius.sm, overflow: "hidden", position: "relative" },
+    fallbackGradientTop: { position: "absolute", top: 0, left: 0, right: 0, height: "50%", backgroundColor: colors.stone100 },
+    fallbackGradientBottom: { position: "absolute", bottom: 0, left: 0, right: 0, height: "50%", backgroundColor: colors.stone200 },
+    fallbackContentOverlay: { flex: 1, padding: 10, alignItems: "center", justifyContent: "center", zIndex: 1 },
+    fallbackTitleWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
+    fallbackTitle: {
+      textAlign: "center", fontSize: fontSize.sm,
+      fontWeight: fontWeight.medium, fontFamily: "serif",
+      color: colors.stone500, lineHeight: 18,
+    },
+    fallbackDivider: { width: 32, height: 1, backgroundColor: `${colors.stone300}99`, marginVertical: 6 },
+    fallbackAuthorWrap: { height: "25%", alignItems: "center", justifyContent: "center" },
+    fallbackAuthor: { textAlign: "center", fontSize: 12, fontFamily: "serif", color: colors.stone400 },
+    progressBarBg: { position: "absolute", bottom: 0, left: 0, right: 0, height: 2, backgroundColor: "rgba(0,0,0,0.1)" },
+    progressBarFill: { height: 2, backgroundColor: colors.primary, opacity: 0.8 },
+    vecOverlay: {
+      position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.5)", borderRadius: radius.sm,
+      alignItems: "center", justifyContent: "center",
+    },
+    vecOverlayText: { marginTop: 6, fontSize: 14, fontWeight: fontWeight.medium, color: "#fff" },
+    queuedOverlay: {
+      position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.35)", borderRadius: radius.sm,
+      alignItems: "center", justifyContent: "center",
+    },
+    queuedOverlayText: { marginTop: 4, fontSize: 12, fontWeight: fontWeight.medium, color: "#fff" },
+    remoteOverlay: {
+      position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: "rgba(59, 130, 246, 0.6)",
+      borderRadius: radius.sm, alignItems: "center", justifyContent: "center",
+    },
+    remoteOverlayText: {
+      fontSize: 12, fontWeight: fontWeight.medium, color: "#fff",
+      backgroundColor: "rgba(0,0,0,0.4)",
+      paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm,
+    },
+    downloadingOverlay: {
+      position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.5)", borderRadius: radius.sm,
+      alignItems: "center", justifyContent: "center",
+    },
+    downloadingOverlayText: { marginTop: 6, fontSize: 14, fontWeight: fontWeight.medium, color: "#fff" },
+    downloadingOverlayPct: { marginTop: 2, fontSize: 12, color: "#fff", opacity: 0.85 },
+    vecBadge: {
+      position: "absolute", top: 2, left: 2,
+      backgroundColor: "rgba(22,163,74,0.8)",
+      borderRadius: radius.sm, paddingHorizontal: 4, paddingVertical: 2,
+    },
+    vecBadgeText: { fontSize: 7, fontWeight: fontWeight.medium, color: "#fff" },
+    moreButtonWrap: {
+      position: "absolute",
+      right: 6,
+      bottom: 6,
+      zIndex: 22,
+    },
+    moreButton: {
+      width: 28,
+      height: 28,
+      borderRadius: radius.md,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(0,0,0,0.36)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.16)",
+    },
+    infoWrap: { paddingTop: 6, paddingHorizontal: 1 },
+    bookTitle: { fontSize: 13, fontWeight: fontWeight.semibold, color: colors.foreground, lineHeight: 14 },
+    bookAuthor: { fontSize: 10, color: colors.mutedForeground, lineHeight: 14, marginTop: 1 },
+    tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 3, marginTop: 3 },
+    tagBadge: { backgroundColor: `${colors.muted}`, borderRadius: radius.full, paddingHorizontal: 6, paddingVertical: 1 },
+    tagText: { fontSize: 8, color: colors.mutedForeground },
+    tagBadgeUncategorized: { backgroundColor: `${colors.muted}80`, borderRadius: radius.full, paddingHorizontal: 6, paddingVertical: 1 },
+    tagTextUncategorized: { fontSize: 8, color: `${colors.mutedForeground}99` },
+    tagOverflow: { fontSize: 8, color: `${colors.mutedForeground}99`, alignSelf: "center" },
+    statusRow: {
+      flexDirection: "row", alignItems: "center",
+      justifyContent: "space-between", marginTop: 3, minHeight: 14,
+    },
+    progressText: { fontSize: 9, color: colors.mutedForeground, fontVariant: ["tabular-nums"] },
+    completeText: { fontSize: 9, fontWeight: fontWeight.medium, color: "#16a34a" },
+    newBadge: { backgroundColor: `${colors.primary}14`, borderRadius: radius.full, paddingHorizontal: 5, paddingVertical: 1 },
+    newText: { fontSize: 8, fontWeight: fontWeight.medium, color: colors.primary },
+    formatText: { fontSize: 8, color: `${colors.mutedForeground}99`, textTransform: "uppercase", letterSpacing: 0.5 },
+  });
+};

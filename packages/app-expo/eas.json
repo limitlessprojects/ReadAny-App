@@ -1,0 +1,75 @@
+{
+  "cli": {
+    "version": ">= 18.11.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "node": "20.18.0",
+      "env": {
+        "APP_VARIANT": "development",
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1"
+      }
+    },
+    "development-simulator": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "node": "20.18.0",
+      "env": {
+        "APP_VARIANT": "development",
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "node": "20.18.0",
+      "env": {
+        "APP_VARIANT": "preview",
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "node": "20.18.0",
+      "env": {
+        "APP_VARIANT": "production",
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1"
+      }
+    },
+    "production-apk": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
+      },
+      "node": "20.18.0",
+      "env": {
+        "APP_VARIANT": "production",
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6762053134"
+      }
+    }
+  }
+}

@@ -1,0 +1,5053 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>ReadAny Reader</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      -webkit-text-size-adjust: none;
+      -webkit-user-select: text;
+      user-select: text;
+      background: var(--bg, #1c1c1e);
+      color: var(--fg, #e8e8ed);
+    }
+
+    #reader-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #pull-bookmark-indicator {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      transform: translate(-50%, -12px) scale(0.96);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 30;
+      transition: opacity 140ms ease, transform 180ms ease;
+    }
+
+    /* While the finger is actively dragging the indicator, kill the transition
+       so the pill follows touch instantly. Re-enable on release for the
+       spring-back animation. */
+    #pull-bookmark-indicator[data-following="true"] {
+      transition: none;
+    }
+
+    #pull-bookmark-indicator .pill {
+      min-width: 164px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(28, 28, 30, 0.88);
+      color: #f5f5f7;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-align: center;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    #pull-bookmark-indicator[data-armed="true"] .pill {
+      background: rgba(59, 130, 246, 0.92);
+      color: white;
+    }
+
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 100;
+    }
+
+    #loading.hidden {
+      display: none;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(99, 102, 241, 0.2);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #loading-text {
+      font-size: 14px;
+      color: var(--muted, #7c7c82);
+    }
+
+    .error-text {
+      font-size: 14px;
+      color: #e53935;
+      text-align: center;
+      padding: 20px;
+    }
+
+    #footnote-tip {
+      position: absolute;
+      z-index: 80;
+      display: none;
+      overflow-y: auto;
+      border: 1px solid rgba(127, 127, 127, 0.24);
+      border-radius: 8px;
+      background: var(--bg, #1c1c1e);
+      color: var(--fg, #e8e8ed);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+      padding: 12px 14px;
+      font-size: 15px;
+      line-height: 1.65;
+      text-align: left;
+      word-break: break-word;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #footnote-tip[data-visible="true"] {
+      display: block;
+    }
+
+    /* Suppress iOS selection callout */
+    * {
+      -webkit-touch-callout: none !important;
+    }
+
+    ::selection {
+      background: rgba(250, 204, 21, 0.4) !important;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="reader-container">
+    <div id="pull-bookmark-indicator" aria-hidden="true" data-armed="false">
+      <div class="pill" id="pull-bookmark-indicator-text"></div>
+    </div>
+    <button id="footnote-tip" type="button" aria-hidden="true"></button>
+    <div id="loading">
+      <div class="spinner"></div>
+      <div id="loading-text">Loading...</div>
+    </div>
+  </div>
+
+  <!-- __READANY_JUSTIFIED_TEXT_INSERT_POINT_6c18f4d2__ -->
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // ReadAny WebView Reader Bridge
+    // Communicates with React Native via postMessage
+    // ═══════════════════════════════════════════════════════════════
+
+    const RN = window.ReactNativeWebView;
+    function postToRN(type, data) {
+      if (RN) RN.postMessage(JSON.stringify({ type, ...data }));
+    }
+    window.__READANY_READER_BUILD_ID = 'android-local-server-cors';
+    postToRN('debug', { message: '[ReaderBuild] ' + window.__READANY_READER_BUILD_ID });
+    Promise.withResolvers ??= function () {
+      let resolve;
+      let reject;
+      const promise = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    };
+
+    // State
+    let view = null;
+    let currentBook = null;
+    let searchGenerator = null;
+    let searchResults = [];
+    let searchIndex = 0;
+    let currentSectionIndex = 0;
+    let totalSections = 0;
+    let currentThemeColors = { bg: '#1c1c1e', fg: '#e8e8ed', muted: '#7c7c82', primary: '#3b82f6' };
+    let currentThemeMode = 'light';
+    let currentBookIsPdf = false;
+    let lastRendererStyles = '';
+    let currentViewMode = 'paginated';
+    let currentSectionUsesVerticalWriting = false;
+    let currentPaginatedLayout = 'double';
+    let currentFontSize = 16;
+    let currentLineHeight = 1.6;
+    let currentParagraphSpacing = 8;
+    let currentJustifyBodyText = true;
+    let currentFontTheme = 'default';
+    let currentCustomFontFaceCSS = '';
+    let currentCustomFontFamily = '';
+    let currentUseBookFonts = true;
+    let currentSmoothReading = false;
+    let tapNavigationInFlight = false;
+    let tapNavigationResetTimer = null;
+    let readerElement = null;
+    let bookTextMetricsJobId = 0;
+    let bookTextMetricsTimer = null;
+    let bookmarkPullGestureActive = false;
+    let pullBookmarkResetTimer = null;
+    let refreshAnnotationsTimer = null;
+    let activeFootnoteTipKey = null;
+    let bookmarkPullStateMeta = {
+      bookmarked: false,
+      pullToAdd: '下滑添加书签',
+      releaseToAdd: '松手添加书签',
+      pullToRemove: '下滑删除书签',
+      releaseToRemove: '松手删除书签',
+    };
+
+    // Store user annotations for re-rendering on page change
+    const userAnnotations = new Map();
+    const TTS_HIGHLIGHT_KEY = 'readany-tts-highlight';
+    const TTS_ANNOTATION_PREFIX = 'foliate-tts:';
+    let ttsHighlightState = {
+      cfi: null,
+      color: null,
+      annotationValue: null,
+    };
+
+    function emitTTSDebug(message, detail) {
+      try {
+        postToRN('debug', {
+          message: detail
+            ? `[ttsHighlight] ${message} ${JSON.stringify(detail)}`
+            : `[ttsHighlight] ${message}`,
+        });
+      } catch {}
+    }
+
+    function clearTapNavigationLock() {
+      tapNavigationInFlight = false;
+      if (tapNavigationResetTimer) {
+        clearTimeout(tapNavigationResetTimer);
+        tapNavigationResetTimer = null;
+      }
+    }
+
+    function armTapNavigationLock() {
+      tapNavigationInFlight = true;
+      if (tapNavigationResetTimer) clearTimeout(tapNavigationResetTimer);
+      tapNavigationResetTimer = setTimeout(() => {
+        clearTapNavigationLock();
+      }, 220);
+    }
+
+    function refreshUserAnnotations(delay) {
+      if (!view) return;
+      if (refreshAnnotationsTimer) clearTimeout(refreshAnnotationsTimer);
+      refreshAnnotationsTimer = setTimeout(() => {
+        refreshAnnotationsTimer = null;
+        if (!view) return;
+
+        for (const [, annotation] of userAnnotations) {
+          view.addAnnotation(annotation).catch(() => {
+            // Ignore annotations outside the currently rendered section.
+          });
+        }
+
+        if (ttsHighlightState.cfi) {
+          setTTSHighlight(ttsHighlightState.cfi, ttsHighlightState.color);
+        }
+      }, delay == null ? 100 : delay);
+    }
+
+    function applyFixedLayoutRendererSettings(renderer, paginatedLayout) {
+      if (!renderer) return;
+      const layout = paginatedLayout === 'single' ? 'single' : 'double';
+      const spreadMode = layout === 'single' ? 'none' : 'auto';
+      const zoomMode = layout === 'single' ? 'fit-width' : 'fit-page';
+
+      renderer.setAttribute('spread', spreadMode);
+      renderer.setAttribute('zoom', zoomMode);
+
+      const host = renderer.closest && renderer.closest('foliate-view');
+      if (host && host.book && host.book.rendition) {
+        host.book.rendition.spread = spreadMode;
+      }
+    }
+
+    function applyMobileReflowRendererSizing(renderer) {
+      if (!renderer) return;
+      renderer.setAttribute('max-column-count', '1');
+      renderer.setAttribute('max-block-size', '1440px');
+    }
+
+    // Mobile is always single-page (no spread), so there is no column gutter to
+    // balance — the foliate gap only contributes the page's internal side
+    // padding. Same derivation as the desktop reader: paper = 99% of the window
+    // (breathing room even at margin 0), outer text inset = margin + 0.5%·H.
+    // All against renderer.clientWidth (foliate resolves the gap % against it).
+    function applyMobileReflowMargins(renderer, margin) {
+      if (!renderer) return;
+      const windowWidth =
+        renderer.clientWidth || window.innerWidth || document.documentElement.clientWidth || 393;
+      const paper = windowWidth * 0.99;
+      const g = margin / paper;
+      renderer.setAttribute('margin-top', margin + 'px');
+      renderer.setAttribute('margin-bottom', margin + 'px');
+      renderer.setAttribute('margin-left', '0px');
+      renderer.setAttribute('margin-right', '0px');
+      renderer.setAttribute('gap', g * 100 + '%');
+      renderer.setAttribute('max-inline-size', paper - margin + g * windowWidth + 'px');
+    }
+
+    function applyRendererFlowMode(renderer) {
+      if (!renderer || !view) return;
+
+      if (view.isFixedLayout) {
+        renderer.removeAttribute('no-continuous-scroll');
+        return;
+      }
+
+      if (currentViewMode === 'scroll') {
+        renderer.removeAttribute('no-continuous-scroll');
+        renderer.setAttribute('flow', 'scrolled');
+        renderer.setAttribute('max-inline-size', '9999px');
+        return;
+      }
+
+      applyMobileReflowRendererSizing(renderer);
+      if (currentSectionUsesVerticalWriting) {
+        renderer.setAttribute('flow', 'scrolled');
+        renderer.setAttribute('no-continuous-scroll', '');
+      } else {
+        renderer.removeAttribute('no-continuous-scroll');
+        renderer.removeAttribute('flow');
+      }
+    }
+
+    // Smooth reading ("平滑阅读"): one toggle drives both the foliate
+    // `animated` page-turn transition and the `scroll-inertia` finger-flick
+    // physics. The attributes are inert until the renderer handles them, so
+    // this is safe to toggle at any time (load, viewMode change, or live).
+    function syncSmoothReadingAttribute(renderer) {
+      if (!renderer) return;
+      if (currentSmoothReading) {
+        renderer.setAttribute('animated', '');
+        renderer.setAttribute('scroll-inertia', '');
+      } else {
+        renderer.removeAttribute('animated');
+        renderer.removeAttribute('scroll-inertia');
+      }
+    }
+
+    function getTransformViewportSize() {
+      const root = document.documentElement;
+      const viewport = window.visualViewport;
+      return {
+        width: Math.max(1, Math.round(viewport?.width || window.innerWidth || root.clientWidth || 393)),
+        height: Math.max(1, Math.round(viewport?.height || window.innerHeight || root.clientHeight || 720)),
+      };
+    }
+
+    function getVerticalWritingCompatibilityStyles() {
+      return `
+        :root.vrtl {
+          -webkit-writing-mode: vertical-rl;
+          writing-mode: vertical-rl;
+        }
+        :root.vltr {
+          -webkit-writing-mode: vertical-lr;
+          writing-mode: vertical-lr;
+        }
+        :root:is(.vrtl, .vltr),
+        :root:is(.vrtl, .vltr) body {
+          -webkit-text-size-adjust: none;
+          text-size-adjust: none;
+        }
+        :root:is(.vrtl, .vltr) body {
+          line-height: normal;
+          -webkit-line-break: strict;
+          line-break: strict;
+          overflow-wrap: normal;
+          word-break: normal;
+        }
+        :root:is(.vrtl, .vltr) p,
+        :root:is(.vrtl, .vltr) div,
+        :root:is(.vrtl, .vltr) span {
+          max-width: none;
+        }
+        :root:is(.vrtl, .vltr) .koboSpan {
+          line-height: inherit;
+          -webkit-text-combine: none;
+          -webkit-text-combine-upright: none;
+          text-combine-upright: none;
+        }
+        :root:is(.vrtl, .vltr) .tcy,
+        :root:is(.vrtl, .vltr) .tcy .koboSpan {
+          -webkit-text-combine: horizontal;
+          -webkit-text-combine-upright: all;
+          text-combine-upright: all;
+        }
+        :root:is(.vrtl, .vltr) ruby,
+        :root:is(.vrtl, .vltr) rb,
+        :root:is(.vrtl, .vltr) rt {
+          line-height: 1;
+        }
+        :root:is(.vrtl, .vltr) rt {
+          font-size: 0.5em;
+          -webkit-text-combine: none;
+          -webkit-text-combine-upright: none;
+          text-combine-upright: none;
+        }
+      `;
+    }
+
+    function normalizeWritingModeValue(value) {
+      const trimmed = String(value || '').trim();
+      return /^vertical-(?:rl|lr)$/i.test(trimmed) ? 'horizontal-tb' : trimmed;
+    }
+
+    function normalizeVerticalWritingClasses(className) {
+      const classes = String(className || '')
+        .split(/\s+/)
+        .filter(Boolean);
+      let changed = false;
+      const normalized = classes.map((name) => {
+        if (name === 'vrtl' || name === 'vltr') {
+          changed = true;
+          return 'hltr';
+        }
+        return name;
+      });
+      if (!changed) return className;
+      return Array.from(new Set(normalized)).join(' ');
+    }
+
+    function transformBookStylesheet(css) {
+      if (typeof css !== 'string' || !css) return css;
+      const { width, height } = getTransformViewportSize();
+      const ruleRegex = /([^{]+)({[^}]+})/g;
+
+      css = css.replace(ruleRegex, (match, selector, block) => {
+        if (/white-space\s*:\s*nowrap\s*[;$]/i.test(block) && !/overflow\s*:/i.test(block)) {
+          return selector + block.replace(/}$/, ' overflow: clip !important; }');
+        }
+        return match;
+      });
+
+      css = css.replace(ruleRegex, (match, selector, block) => {
+        const widthMatch = /(?:^|[^a-z-])width\s*:\s*(\d+(?:\.\d+)?)px/i.exec(block);
+        const pxWidth = widthMatch ? parseFloat(widthMatch[1] || '0') : 0;
+        if (pxWidth > width && !/max-width\s*:/i.test(block)) {
+          return selector + block.replace(
+            /}$/,
+            ' width: 100%; max-width: 100%; box-sizing: border-box; }',
+          );
+        }
+        return match;
+      });
+
+      return css
+        .replace(/-webkit-writing-mode\s*:\s*([^;}{]+)/gi, (_, value) => {
+          const normalized = normalizeWritingModeValue(value);
+          return `-webkit-writing-mode: ${normalized}; writing-mode: ${normalized}`;
+        })
+        .replace(/-epub-writing-mode\s*:\s*([^;}{]+)/gi, (_, value) => `writing-mode: ${normalizeWritingModeValue(value)}`)
+        .replace(/([{\s;])writing-mode\s*:\s*([^;}{]+)/gi, (_, prefix, value) => `${prefix}writing-mode: ${normalizeWritingModeValue(value)}`)
+        .replace(/-webkit-line-break\s*:\s*([^;}{]+)/gi, '-webkit-line-break: $1; line-break: $1')
+        .replace(/-epub-line-break\s*:\s*([^;}{]+)/gi, 'line-break: $1')
+        .replace(/-webkit-word-break\s*:\s*([^;}{]+)/gi, '-webkit-word-break: $1; word-break: $1')
+        .replace(/-epub-word-break\s*:\s*([^;}{]+)/gi, 'word-break: $1')
+        .replace(/-webkit-text-orientation\s*:\s*([^;}{]+)/gi, '-webkit-text-orientation: $1; text-orientation: $1')
+        .replace(/-epub-text-orientation\s*:\s*([^;}{]+)/gi, 'text-orientation: $1')
+        .replace(/-webkit-text-combine-upright\s*:\s*([^;}{]+)/gi, '-webkit-text-combine-upright: $1; text-combine-upright: $1')
+        .replace(/-webkit-text-combine\s*:\s*([^;}{]+)/gi, (_, value) => {
+          const trimmed = String(value).trim();
+          const upright = trimmed.toLowerCase() === 'horizontal' ? 'all' : trimmed;
+          return `-webkit-text-combine: ${trimmed}; text-combine-upright: ${upright}`;
+        })
+        .replace(/-epub-text-combine\s*:\s*([^;}{]+)/gi, (_, value) => {
+          const trimmed = String(value).trim();
+          return `text-combine-upright: ${trimmed.toLowerCase() === 'horizontal' ? 'all' : trimmed}`;
+        })
+        .replace(/(\d*\.?\d+)vw/gi, (_, d) => `${parseFloat(d) * width / 100}px`)
+        .replace(/(\d*\.?\d+)vh/gi, (_, d) => `${parseFloat(d) * height / 100}px`)
+        .replace(/page-break-(after|before|inside)\s*:/gi, (_, x) => `-webkit-column-break-${x}:`)
+        .replace(/break-(after|before|inside)\s*:\s*(avoid-)?page/gi, (_, x, y) => `break-${x}: ${y || ''}column`)
+        .replace(/([{\s;])-epub-/gi, '$1');
+    }
+
+    function transformBookContentMarkup(markup) {
+      if (typeof markup !== 'string' || !markup) return markup;
+      const withoutScripts = markup
+        .replace(/<script\b[^>]*\/\s*>/gi, '')
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+      const normalizedMarkup = withoutScripts
+        .replace(/\bclass\s*=\s*(['"])([^'"]*)\1/gi, (match, quote, className) => {
+          const normalized = normalizeVerticalWritingClasses(className);
+          return normalized === className ? match : `class=${quote}${normalized}${quote}`;
+        })
+        .replace(/\bstyle\s*=\s*(['"])([^'"]*)\1/gi, (_, quote, css) => `style=${quote}${transformBookStylesheet(css)}${quote}`);
+      if (!/<style[\s>]/i.test(normalizedMarkup)) return normalizedMarkup;
+      return normalizedMarkup.replace(/<style\b([^>]*)>([\s\S]*?)<\/style>/gi, (_, attrs, css) => {
+        return `<style${attrs}>${transformBookStylesheet(css)}</style>`;
+      });
+    }
+
+    function attachBookTransformHandler(book) {
+      if (!book || !book.transformTarget || book.__readany_mobile_transform_attached) return;
+      book.__readany_mobile_transform_attached = true;
+      book.transformTarget.addEventListener('load', ({ detail }) => {
+        if (detail && detail.isScript) detail.allow = false;
+      });
+      book.transformTarget.addEventListener('data', ({ detail }) => {
+        if (!detail || !detail.type) return;
+        const type = String(detail.type).toLowerCase();
+        const isStylesheet = type === 'text/css';
+        const isHtml = type === 'application/xhtml+xml' || type === 'text/html';
+        if (!isStylesheet && !isHtml) return;
+
+        detail.data = Promise.resolve(detail.data)
+          .then((data) => {
+            if (typeof data !== 'string') return data;
+            return isStylesheet ? transformBookStylesheet(data) : transformBookContentMarkup(data);
+          })
+          .catch((error) => {
+            console.warn('[Reader] Failed to transform book resource:', detail.name, error);
+            return '';
+          });
+      });
+    }
+
+    function getPullBookmarkElements() {
+      return {
+        indicator: document.getElementById('pull-bookmark-indicator'),
+        text: document.getElementById('pull-bookmark-indicator-text'),
+      };
+    }
+
+    function getPullBookmarkLabel(armed) {
+      if (bookmarkPullStateMeta.bookmarked) {
+        return armed ? bookmarkPullStateMeta.releaseToRemove : bookmarkPullStateMeta.pullToRemove;
+      }
+      return armed ? bookmarkPullStateMeta.releaseToAdd : bookmarkPullStateMeta.pullToAdd;
+    }
+
+    function setReaderTranslateY(offset, animated) {
+      return;
+    }
+
+    function updatePullBookmarkUI(offset, armed) {
+      const { indicator, text } = getPullBookmarkElements();
+      const pullOffset = Math.max(0, Math.min(offset, 72));
+      const easedOffset = Math.round(Math.min(58, pullOffset * 0.78));
+      bookmarkPullGestureActive = pullOffset > 0;
+      if (text) text.textContent = getPullBookmarkLabel(armed);
+      if (indicator) {
+        indicator.dataset.following = 'true';
+        indicator.dataset.armed = armed ? 'true' : 'false';
+        indicator.style.opacity = String(Math.min(1, pullOffset / 18));
+        indicator.style.transform =
+          `translate(-50%, ${Math.min(24, -12 + easedOffset * 0.68)}px) scale(${0.96 + Math.min(0.08, pullOffset / 360)})`;
+      }
+      setReaderTranslateY(easedOffset, false);
+      postToRN('bookmarkPull', { offset: easedOffset, armed, active: pullOffset > 0 });
+    }
+
+    function resetPullBookmarkUI(animated) {
+      const { indicator, text } = getPullBookmarkElements();
+      bookmarkPullGestureActive = false;
+      if (text) text.textContent = getPullBookmarkLabel(false);
+      if (indicator) {
+        indicator.dataset.following = 'false';
+        indicator.dataset.armed = 'false';
+        indicator.style.opacity = '0';
+        indicator.style.transform = 'translate(-50%, -12px) scale(0.96)';
+      }
+      setReaderTranslateY(0, animated !== false);
+      postToRN('bookmarkPull', { offset: 0, armed: false, active: false });
+    }
+
+    function getRendererContents() {
+      if (!view || !view.renderer || !view.renderer.getContents) return [];
+      const contents = view.renderer.getContents();
+      if (!contents || !contents.length) return [];
+      const unique = [];
+      for (const content of contents) {
+        if (!content || !content.doc || content.index == null) continue;
+        const exists = unique.some(
+          (item) => item.doc === content.doc && item.index === content.index
+        );
+        if (exists) continue;
+        unique.push(content);
+      }
+      return unique;
+    }
+
+    function getRendererContentForDoc(doc) {
+      if (!doc) return null;
+      const contents = getRendererContents();
+      return contents.find((content) => content.doc === doc) || null;
+    }
+
+    function getPrimaryRendererContent() {
+      const contents = getRendererContents();
+      if (!contents.length) return null;
+      const primaryIndex = view && view.renderer ? view.renderer.primaryIndex : null;
+      return (
+        contents.find((content) => content.doc && content.index === primaryIndex) ||
+        contents.find((content) => content.doc && content.index === currentSectionIndex) ||
+        contents.find((content) => content.doc) ||
+        null
+      );
+    }
+
+    function getRendererContentForCfi(cfi) {
+      const contents = getRendererContents();
+      if (!contents.length) return null;
+      if (!cfi || !view || !view.resolveCFI) {
+        return getPrimaryRendererContent() || contents.find((content) => content.overlayer) || contents[0] || null;
+      }
+
+      try {
+        const resolved = view.resolveCFI(cfi);
+        if (resolved && resolved.index != null) {
+          const byIndex = contents.find((content) => content.index === resolved.index && content.overlayer);
+          if (byIndex) return byIndex;
+        }
+        if (resolved && typeof resolved.anchor === 'function') {
+          for (const content of contents) {
+            try {
+              const anchored = resolved.anchor(content.doc);
+              if (anchored) return content;
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.log('[ttsHighlight] failed to resolve content for cfi:', e);
+      }
+
+      return getPrimaryRendererContent() || contents.find((content) => content.overlayer) || contents[0] || null;
+    }
+
+    function getAllTTSOverlayerContexts() {
+      return getRendererContents().filter((content) => content.overlayer);
+    }
+
+    function removeAllTTSHighlights() {
+      const contexts = getAllTTSOverlayerContexts();
+      for (const context of contexts) {
+        try {
+          context.overlayer.remove(TTS_HIGHLIGHT_KEY);
+        } catch {}
+      }
+    }
+
+    function getCurrentTTSOverlayerContext() {
+      const primary = getPrimaryRendererContent();
+      if (primary && primary.overlayer) return primary;
+      return getAllTTSOverlayerContexts()[0] || null;
+    }
+
+    async function ensureTTSEngine() {
+      const current = getCurrentTTSOverlayerContext();
+      if (!view || !current || !current.doc) return null;
+
+      try {
+        await view.initTTS('sentence', (range) => {
+          const sourceDoc = range && range.startContainer
+            ? (range.startContainer.nodeType === Node.DOCUMENT_NODE
+                ? range.startContainer
+                : range.startContainer.ownerDocument)
+            : null;
+          const source = getRendererContentForDoc(sourceDoc) || getCurrentTTSOverlayerContext();
+          if (!source || !source.overlayer || !source.doc || source.index == null) return null;
+
+          let cfi = null;
+          try {
+            cfi = view.getCFI ? view.getCFI(source.index, range.cloneRange()) : null;
+          } catch (e) {
+            console.log('[ttsHighlight] failed to convert highlighted range to CFI:', e);
+          }
+
+          const target = cfi ? getRendererContentForCfi(cfi) : source;
+          let renderRange = range;
+          if (cfi && view.resolveCFI && target && target.doc) {
+            try {
+              const resolved = view.resolveCFI(cfi);
+              const anchoredRange = resolved?.anchor?.(target.doc);
+              if (anchoredRange) renderRange = anchoredRange;
+            } catch (e) {
+              console.log('[ttsHighlight] failed to resolve highlighted CFI:', e);
+            }
+          }
+
+          removeAllTTSHighlights();
+
+          try {
+            (target || source).overlayer.add(
+              TTS_HIGHLIGHT_KEY,
+              renderRange,
+              Overlayer.highlight,
+              { color: resolveTTSHighlightColor(ttsHighlightState.color) }
+            );
+          } catch (e) {
+            console.log('[ttsHighlight] error drawing active TTS highlight:', e);
+          }
+
+          return cfi;
+        });
+        return view.tts || null;
+      } catch (e) {
+        console.log('[ttsHighlight] failed to initialize TTS engine:', e);
+        return null;
+      }
+    }
+
+    function drawTTSHighlight(rects, options) {
+      const { color = 'rgba(96, 165, 250, 0.35)', padding = 1, radius = 4, radiusPadding = 2 } = options || {};
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const g = document.createElementNS(svgNS, 'g');
+      g.setAttribute('fill', color);
+      g.style.opacity = 'var(--overlayer-highlight-opacity, 1)';
+      g.style.mixBlendMode = 'var(--overlayer-highlight-blend-mode, normal)';
+
+      for (let index = 0; index < rects.length; index++) {
+        const { left, top, width, height } = rects[index];
+        const isFirst = index === 0;
+        const isLast = index === rects.length - 1;
+        const x = left - padding - (isFirst ? radiusPadding : 0);
+        const y = top - padding;
+        const w = width + padding * 2 + (isFirst ? radiusPadding : 0) + (isLast ? radiusPadding : 0);
+        const h = height + padding * 2;
+        const rtl = isLast ? radius : 0;
+        const rtr = isFirst ? radius : 0;
+        const rbr = isFirst ? radius : 0;
+        const rbl = isLast ? radius : 0;
+        const path = document.createElementNS(svgNS, 'path');
+        path.setAttribute(
+          'd',
+          [
+            `M ${x + rtl} ${y}`,
+            `H ${x + w - rtr}`,
+            rtr ? `Q ${x + w} ${y} ${x + w} ${y + rtr}` : '',
+            `V ${y + h - rbr}`,
+            rbr ? `Q ${x + w} ${y + h} ${x + w - rbr} ${y + h}` : '',
+            `H ${x + rbl}`,
+            rbl ? `Q ${x} ${y + h} ${x} ${y + h - rbl}` : '',
+            `V ${y + rtl}`,
+            rtl ? `Q ${x} ${y} ${x + rtl} ${y}` : '',
+            'Z',
+          ].filter(Boolean).join(' ')
+        );
+        g.append(path);
+      }
+
+      return g;
+    }
+
+    function resolveTTSHighlightColor(color) {
+      if (!color) return 'rgba(96, 165, 250, 0.35)';
+      // If it's already an rgba/rgb value, use as-is
+      if (color.startsWith('rgba(') || color.startsWith('rgb(')) return color;
+      // If it's a plain hex color, apply 35% opacity for a soft blue-tinted highlight
+      if (/^#[0-9a-fA-F]{3,8}$/.test(color)) {
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, 0.35)`;
+      }
+      return color;
+    }
+
+    function clearTTSHighlight() {
+      const previousValue = ttsHighlightState.annotationValue;
+      if (!previousValue && !ttsHighlightState.cfi) return;
+      ttsHighlightState = { cfi: null, color: null, annotationValue: null };
+      removeAllTTSHighlights();
+      if (view && previousValue) {
+        try {
+          view.deleteAnnotation({ value: previousValue, type: 'tts-highlight' });
+        } catch (e) {}
+      }
+    }
+
+    function countReadableCharacters(doc) {
+      const rawText = doc && doc.body && typeof doc.body.textContent === 'string'
+        ? doc.body.textContent
+        : '';
+      return rawText.replace(/\s+/g, '').length;
+    }
+
+    async function computeBookTextMetrics(book, jobId) {
+      if (!book || !book.sections || !book.sections.length) return 0;
+      let totalCharacters = 0;
+
+      for (let index = 0; index < book.sections.length; index++) {
+        if (jobId !== bookTextMetricsJobId || currentBook !== book) return 0;
+        const section = book.sections[index];
+        if (!section || !section.createDocument) continue;
+        try {
+          const doc = await section.createDocument();
+          const sectionCharacters = countReadableCharacters(doc);
+          if (sectionCharacters > 0) {
+            totalCharacters += sectionCharacters;
+          }
+        } catch (error) {
+          console.warn('[WebView] Failed to measure section characters:', section && section.href, error);
+        }
+
+        if (index > 0 && index % 3 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+
+      return totalCharacters;
+    }
+
+    function scheduleBookTextMetrics(book) {
+      if (bookTextMetricsTimer) {
+        clearTimeout(bookTextMetricsTimer);
+        bookTextMetricsTimer = null;
+      }
+
+      const jobId = ++bookTextMetricsJobId;
+      bookTextMetricsTimer = setTimeout(async () => {
+        bookTextMetricsTimer = null;
+        const totalCharacters = await computeBookTextMetrics(book, jobId);
+        if (jobId !== bookTextMetricsJobId || currentBook !== book) return;
+        if (totalCharacters > 0) {
+          postToRN('bookTextMetrics', { totalCharacters });
+        }
+      }, 900);
+    }
+
+    async function followTTSLocation(cfi) {
+      if (!view || !view.renderer || !cfi) return;
+      const resolved = resolveRangeForCfi(cfi);
+      if (!resolved) {
+        try {
+          await view.goTo(cfi);
+        } catch (e) {}
+        return;
+      }
+
+      const { range, doc, index } = resolved;
+      const contents = getRendererContents();
+      const current = contents[0] || null;
+      const currentIndex = current && current.index != null ? current.index : null;
+
+      if (currentIndex != null && index !== currentIndex) {
+        try {
+          await view.goTo(cfi);
+        } catch (e) {}
+        return;
+      }
+
+      const renderer = view.renderer;
+      const win = doc.defaultView;
+      if (!win) return;
+      if (!isRangeVisibleInReader(range, renderer, win)) {
+        try {
+          await renderer.scrollToAnchor(range, true);
+        } catch (e) {
+          try {
+            await view.goTo(cfi);
+          } catch (_) {}
+        }
+      }
+    }
+
+    async function setTTSHighlight(cfi, color) {
+      postToRN('debug', { message: '[ttsHighlight] setTTSHighlight called: cfi=' + (cfi || 'null') + ' color=' + (color || 'null') });
+      const previousValue = ttsHighlightState.annotationValue;
+      const annotationValue = cfi ? `${TTS_ANNOTATION_PREFIX}${cfi}` : null;
+      const normalizedColor = color || null;
+      if (
+        ttsHighlightState.annotationValue === annotationValue &&
+        ttsHighlightState.color === normalizedColor
+      ) {
+        return;
+      }
+      ttsHighlightState = {
+        cfi: cfi || null,
+        color: normalizedColor,
+        annotationValue,
+      };
+      if (!view) {
+        postToRN('debug', { message: '[ttsHighlight] no view, aborting' });
+        return;
+      }
+
+      // Remove previous TTS highlight annotation
+      if (previousValue) {
+        try {
+          await view.deleteAnnotation({ value: previousValue, type: 'tts-highlight' });
+        } catch (e) {
+          postToRN('debug', { message: '[ttsHighlight] delete error: ' + String(e) });
+        }
+      }
+      removeAllTTSHighlights();
+
+      if (!cfi) return;
+
+      // Only draw the active TTS highlight here.
+      // Reader-level sentence following is controlled in React so this layer
+      // does not accidentally trigger extra relocates while simply repainting.
+      try {
+        await view.addAnnotation({
+          value: annotationValue,
+          type: 'tts-highlight',
+          color: color || null,
+        });
+        postToRN('debug', { message: '[ttsHighlight] addAnnotation success for: ' + cfi.slice(0, 40) });
+      } catch (e) {
+        postToRN('debug', { message: '[ttsHighlight] addAnnotation error: ' + String(e) });
+      }
+    }
+
+    // User annotation registry: per-doc WeakMap of cfi -> { range }
+    const docAnnotationRegistries = new WeakMap();
+
+    function isUserTapAnnotation(annotation) {
+      const value = annotation?.value;
+      if (!annotation || !value) return false;
+      return !annotation.flash &&
+        annotation.type !== 'tts-highlight' &&
+        !value.startsWith('flash-') &&
+        !value.startsWith('foliate-search:') &&
+        !value.startsWith(TTS_ANNOTATION_PREFIX);
+    }
+
+    function registerAnnotationRange(doc, cfi, range) {
+      let registry = docAnnotationRegistries.get(doc);
+      if (!registry) {
+        registry = new Map();
+        docAnnotationRegistries.set(doc, registry);
+      }
+      registry.set(cfi, { range });
+    }
+
+    function unregisterAnnotationRange(doc, cfi) {
+      const registry = docAnnotationRegistries.get(doc);
+      if (registry) registry.delete(cfi);
+    }
+
+    function isPointInAnnotationRange(doc, x, y) {
+      const registry = docAnnotationRegistries.get(doc);
+      if (!registry || registry.size === 0) return null;
+      const pad = 8;
+      for (const [cfi, entry] of registry) {
+        try {
+          for (const rect of entry.range.getClientRects()) {
+            if (x >= rect.left - pad && x <= rect.right + pad &&
+                y >= rect.top - pad && y <= rect.bottom + pad + 4) {
+              return { cfi, range: entry.range };
+            }
+          }
+        } catch {
+          registry.delete(cfi);
+        }
+      }
+      return null;
+    }
+
+    function postShowAnnotation(value, range) {
+      const doc = range?.startContainer?.ownerDocument;
+      if (!value || !range || !doc) return;
+      armNoteTapGuard(doc, 900);
+      const rect = range.getBoundingClientRect();
+      const iframe = doc.defaultView?.frameElement;
+      const iframeRect = iframe ? iframe.getBoundingClientRect() : { left: 0, top: 0 };
+      postToRN('show-annotation', {
+        value,
+        position: {
+          x: iframeRect.left + rect.left + rect.width / 2,
+          y: iframeRect.top + rect.top - 8,
+          selectionTop: iframeRect.top + rect.top,
+          selectionBottom: iframeRect.top + rect.bottom,
+        },
+      });
+    }
+
+    // Note tooltip registry: per-doc WeakMap of cfi -> { range, note }
+    const docNoteRegistries = new WeakMap();
+
+    function registerNoteRange(doc, cfi, range, note) {
+      let registry = docNoteRegistries.get(doc);
+      if (!registry) {
+        registry = new Map();
+        docNoteRegistries.set(doc, registry);
+      }
+      registry.set(cfi, { range, note });
+    }
+
+    function unregisterNoteRange(doc, cfi) {
+      const registry = docNoteRegistries.get(doc);
+      if (registry) registry.delete(cfi);
+    }
+
+    function isPointInNoteRange(doc, x, y) {
+      const registry = docNoteRegistries.get(doc);
+      if (!registry || registry.size === 0) return null;
+      const pad = 6;
+      for (const [cfi, entry] of registry) {
+        for (const rect of entry.range.getClientRects()) {
+          if (x >= rect.left - pad && x <= rect.right + pad &&
+              y >= rect.top - pad && y <= rect.bottom + pad + 4) {
+            return { cfi, note: entry.note, range: entry.range };
+          }
+        }
+      }
+      return null;
+    }
+
+    function armNoteTapGuard(doc, duration = 750) {
+      if (!doc) return;
+      doc.__readany_noteTapGuardUntil = Date.now() + duration;
+    }
+
+    function isNoteTapGuardActive(doc) {
+      return !!doc?.__readany_noteTapGuardUntil && doc.__readany_noteTapGuardUntil > Date.now();
+    }
+
+    function isFootnoteMarkerText(text) {
+      const value = String(text || '').replace(/\s+/g, '').trim();
+      if (!value) return false;
+      if (value === '注' || value === '註') return true;
+      return /^[\[\(（【〔［]?(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})[\]\)）】〕］]?$/.test(value);
+    }
+
+    function getHrefFragmentId(href) {
+      const value = String(href || '');
+      const hashIndex = value.indexOf('#');
+      if (hashIndex < 0 || hashIndex === value.length - 1) return null;
+      try {
+        return decodeURIComponent(value.slice(hashIndex + 1));
+      } catch {
+        return value.slice(hashIndex + 1);
+      }
+    }
+
+    function findElementByFragmentId(doc, fragmentId) {
+      if (!doc || !fragmentId) return null;
+      const byId = doc.getElementById(fragmentId);
+      if (byId) return byId;
+      try {
+        return doc.getElementsByName(fragmentId)[0] || null;
+      } catch {
+        return null;
+      }
+    }
+
+    function isFootnoteLikeElement(element) {
+      if (!element) return false;
+      const haystack = [
+        element.id,
+        element.getAttribute && element.getAttribute('role'),
+        element.getAttribute && element.getAttribute('type'),
+        element.getAttribute && element.getAttribute('epub:type'),
+        element.className,
+      ].map((value) => String(value || '').toLowerCase()).join(' ');
+      return /\b(doc-)?(noteref|footnote|endnote|rearnote|note)\b|fn(ref)?|duokan-footnote|calibre-footnote/.test(haystack);
+    }
+
+    function isLikelyFootnoteLink(anchor, href) {
+      if (!anchor) return false;
+      const rawHref = anchor.getAttribute('href') || href || '';
+      const hrefLower = String(rawHref).toLowerCase();
+      if (
+        isFootnoteLikeElement(anchor) ||
+        isFootnoteLikeElement(anchor.closest && anchor.closest('sup, span, a, [role], [type], [epub\\:type]'))
+      ) {
+        return true;
+      }
+      if (/(^|[#/_-])(fn|footnote|endnote|note|noteref|duokan-footnote|calibre-footnote)/i.test(hrefLower)) {
+        return true;
+      }
+      return isFootnoteMarkerText(anchor.textContent || '') && !!getHrefFragmentId(rawHref);
+    }
+
+    function getFootnoteTipKey(anchor, href) {
+      return [
+        anchor?.ownerDocument?.location?.href || '',
+        anchor?.getAttribute?.('href') || href || '',
+        anchor?.textContent?.trim() || '',
+      ].join('::');
+    }
+
+    function getFootnoteElementText(element) {
+      if (!element) return '';
+      let cloned;
+      try {
+        cloned = element instanceof Range
+          ? element.cloneContents()
+          : (() => {
+              const fragment = document.createDocumentFragment();
+              fragment.appendChild(element.cloneNode(true));
+              return fragment;
+            })();
+      } catch {
+        return '';
+      }
+
+      for (const node of Array.from(cloned.querySelectorAll('script, style, rt, rp, a[href]'))) {
+        const text = node.textContent || '';
+        if (node.matches('a[href]') && !isFootnoteMarkerText(text)) continue;
+        node.remove();
+      }
+
+      return String(cloned.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 600);
+    }
+
+    // Well-formed books put the footnote id on a block container (<aside>),
+    // but many real-world books put it on the inline marker itself ("[2]")
+    // whose parent block carries the actual note. Walk up while a node's own
+    // (marker-stripped) text is empty and return the first ancestor that
+    // yields note text - no tag-name or length heuristics.
+    function findFootnotePreviewElement(element) {
+      var doc = element.ownerDocument;
+      var node = element;
+      while (node && node !== doc.body) {
+        if (getFootnoteElementText(node).trim()) return node;
+        node = node.parentElement;
+      }
+      return element;
+    }
+
+    async function resolveFootnoteTipText(anchor, href) {
+      const rawHref = anchor?.getAttribute?.('href') || href || '';
+      const sourceDoc = anchor?.ownerDocument;
+      const localTarget = findElementByFragmentId(sourceDoc, getHrefFragmentId(rawHref));
+      if (localTarget && (isFootnoteLikeElement(localTarget) || isLikelyFootnoteLink(anchor, href))) {
+        return getFootnoteElementText(findFootnotePreviewElement(localTarget));
+      }
+
+      if (!view || !href) return '';
+      try {
+        const resolved = typeof view.resolveNavigation === 'function'
+          ? await Promise.resolve(view.resolveNavigation(href))
+          : currentBook?.resolveHref
+            ? await Promise.resolve(currentBook.resolveHref(href))
+            : null;
+        const targetIndex = resolved && Number.isInteger(resolved.index) ? resolved.index : -1;
+        if (targetIndex < 0) return '';
+        const currentContent = getRendererContents().find((item) => item && item.index === targetIndex && item.doc);
+        const targetDoc =
+          currentContent?.doc ||
+          (currentBook?.sections?.[targetIndex]?.createDocument
+            ? await currentBook.sections[targetIndex].createDocument()
+            : null);
+        if (!targetDoc) return '';
+        const target = typeof resolved.anchor === 'function' ? resolved.anchor(targetDoc) : null;
+        if (!target) return '';
+        return getFootnoteElementText(
+          target && target.nodeType === 1 ? findFootnotePreviewElement(target) : target,
+        );
+      } catch {
+        return '';
+      }
+    }
+
+    function hideFootnoteTip() {
+      const tip = document.getElementById('footnote-tip');
+      activeFootnoteTipKey = null;
+      if (!tip) return;
+      tip.dataset.visible = 'false';
+      tip.setAttribute('aria-hidden', 'true');
+      tip.textContent = '';
+    }
+
+    function positionFootnoteTip(anchor, text) {
+      const tip = document.getElementById('footnote-tip');
+      const container = document.getElementById('reader-container');
+      if (!tip || !container || !anchor || !text) return false;
+
+      const rect = anchor.getBoundingClientRect();
+      const iframe = anchor.ownerDocument?.defaultView?.frameElement;
+      const iframeRect = iframe ? iframe.getBoundingClientRect() : { left: 0, top: 0 };
+      const containerRect = container.getBoundingClientRect();
+      const scaleX = iframe && iframe.clientWidth > 0 ? iframeRect.width / iframe.clientWidth : 1;
+      const scaleY = iframe && iframe.clientHeight > 0 ? iframeRect.height / iframe.clientHeight : 1;
+      const anchorX = iframeRect.left + rect.left * scaleX + rect.width * scaleX / 2 - containerRect.left;
+      const anchorTop = iframeRect.top + rect.top * scaleY - containerRect.top;
+      const anchorBottom = anchorTop + rect.height * scaleY;
+      const width = Math.max(180, Math.min(340, containerRect.width - 32));
+      const maxLeft = Math.max(16, containerRect.width - width - 16);
+      const left = Math.max(16, Math.min(maxLeft, anchorX - width / 2));
+      const belowTop = anchorBottom + 12;
+      const belowSpace = containerRect.height - belowTop - 16;
+      const aboveSpace = anchorTop - 16;
+      const placeAbove = belowSpace < 120 && aboveSpace > belowSpace;
+      const maxHeight = placeAbove
+        ? Math.max(96, Math.min(240, aboveSpace - 10))
+        : Math.max(96, Math.min(240, belowSpace));
+
+      tip.textContent = text;
+      tip.style.left = `${left}px`;
+      tip.style.width = `${width}px`;
+      tip.style.maxHeight = `${maxHeight}px`;
+      tip.style.top = '';
+      tip.style.bottom = '';
+      if (placeAbove) {
+        tip.style.bottom = `${Math.max(16, containerRect.height - anchorTop + 10)}px`;
+      } else {
+        tip.style.top = `${Math.max(16, Math.min(containerRect.height - maxHeight - 16, belowTop))}px`;
+      }
+      tip.dataset.visible = 'true';
+      tip.setAttribute('aria-hidden', 'false');
+      return true;
+    }
+
+    // Attach long-press note tooltip detection to each doc
+    function attachNoteLongPress(doc) {
+      if (doc.__readany_noteLongPress) return;
+      doc.__readany_noteLongPress = true;
+
+      const LONG_PRESS_MS = 400;
+      let timer = null;
+      let startX = 0, startY = 0;
+
+      doc.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        startX = touch.clientX;
+        startY = touch.clientY;
+
+        timer = setTimeout(() => {
+          timer = null;
+          const hit = isPointInNoteRange(doc, startX, startY);
+          if (!hit) return;
+          armNoteTapGuard(doc, 900);
+
+          // Prevent subsequent click / show-annotation
+          e.preventDefault && e.preventDefault();
+
+          const rect = hit.range.getBoundingClientRect();
+          const iframe = doc.defaultView && doc.defaultView.frameElement;
+          const iframeRect = iframe ? iframe.getBoundingClientRect() : { left: 0, top: 0 };
+          postToRN('note-tooltip', {
+            cfi: hit.cfi,
+            note: hit.note,
+            position: {
+              x: iframeRect.left + rect.left + rect.width / 2,
+              y: iframeRect.top + rect.top - 8,
+              selectionTop: iframeRect.top + rect.top,
+              selectionBottom: iframeRect.top + rect.bottom,
+            },
+          });
+        }, LONG_PRESS_MS);
+      }, { passive: false });
+
+      doc.addEventListener('touchmove', (e) => {
+        if (!timer) return;
+        const touch = e.touches[0];
+        if (Math.abs(touch.clientX - startX) > 10 || Math.abs(touch.clientY - startY) > 10) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      }, { passive: true });
+
+      doc.addEventListener('touchend', () => {
+        if (timer) { clearTimeout(timer); timer = null; }
+      }, { passive: true });
+
+      doc.addEventListener('touchcancel', () => {
+        if (timer) { clearTimeout(timer); timer = null; }
+      }, { passive: true });
+    }
+
+    // ─── Message handler from React Native ───
+    window.addEventListener('message', async (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        await handleCommand(msg);
+      } catch (err) {
+        console.error('[WebView] Error in message handler:', err);
+        postToRN('error', { message: String(err) });
+      }
+    });
+
+    document.addEventListener('message', async (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        await handleCommand(msg);
+      } catch (err) {
+        console.error('[WebView] Error in iOS message handler:', err);
+        postToRN('error', { message: String(err) });
+      }
+    });
+
+    async function handleCommand(msg) {
+      switch (msg.type) {
+        case 'openBook':
+          await openBook(msg);
+          break;
+        case 'goNext':
+          if (view) await goNextByMode(undefined, 'rn:goNext');
+          break;
+        case 'goPrev':
+          if (view) await goPrevByMode(undefined, 'rn:goPrev');
+          break;
+        case 'goToFraction':
+          if (view && msg.fraction != null) await view.goToFraction(msg.fraction);
+          break;
+        case 'goToHref':
+          if (view && msg.href) await view.goTo(msg.href);
+          break;
+        case 'goToCFI':
+          if (view && msg.cfi) await view.goTo(msg.cfi);
+          break;
+        case 'search':
+          await handleSearch(msg.query);
+          break;
+        case 'clearSearch':
+          if (view) view.clearSearch();
+          searchResults = [];
+          searchIndex = 0;
+          break;
+        case 'navigateSearch':
+          if (msg.index != null) navigateToSearchResult(msg.index);
+          break;
+        case 'addAnnotation':
+          if (view && msg.annotation) {
+            if (
+              msg.annotation.type === 'tts-highlight' ||
+              (msg.annotation.value && msg.annotation.value.startsWith(TTS_ANNOTATION_PREFIX))
+            ) {
+              postToRN('debug', {
+                message: `[ttsHighlight] addAnnotation command ${JSON.stringify({
+                  value: msg.annotation.value,
+                  type: msg.annotation.type,
+                  color: msg.annotation.color,
+                })}`,
+              });
+            }
+            // Don't store flash highlights in userAnnotations
+            if (
+              !msg.annotation.flash &&
+              !(msg.annotation.value && msg.annotation.value.startsWith('flash-')) &&
+              msg.annotation.type !== 'tts-highlight' &&
+              !(msg.annotation.value && msg.annotation.value.startsWith(TTS_ANNOTATION_PREFIX))
+            ) {
+              userAnnotations.set(msg.annotation.value, msg.annotation);
+            }
+            await view.addAnnotation(msg.annotation);
+          }
+          break;
+        case 'removeAnnotation':
+          if (view && msg.annotation) {
+            if (
+              msg.annotation.type === 'tts-highlight' ||
+              (msg.annotation.value && msg.annotation.value.startsWith(TTS_ANNOTATION_PREFIX))
+            ) {
+              postToRN('debug', {
+                message: `[ttsHighlight] removeAnnotation command ${JSON.stringify({
+                  value: msg.annotation.value,
+                  type: msg.annotation.type,
+                })}`,
+              });
+            }
+            await view.deleteAnnotation(msg.annotation);
+            // Don't delete from userAnnotations if it's a flash highlight
+            if (
+              !msg.annotation.flash &&
+              !(msg.annotation.value && msg.annotation.value.startsWith('flash-')) &&
+              msg.annotation.type !== 'tts-highlight' &&
+              !(msg.annotation.value && msg.annotation.value.startsWith(TTS_ANNOTATION_PREFIX))
+            ) {
+              userAnnotations.delete(msg.annotation.value);
+            }
+          }
+          break;
+        case 'applySettings':
+          if (view && msg.settings) applySettings(msg.settings);
+          break;
+        case 'setTTSHighlight':
+          await setTTSHighlight(msg.cfi, msg.color);
+          break;
+        case 'clearTTSHighlight':
+          await clearTTSHighlight();
+          break;
+        case 'setThemeColors':
+          if (msg.colors) setThemeColors(msg.colors, msg.themeMode);
+          break;
+        case 'extractChapters':
+          await handleExtractChapters();
+          break;
+        case 'extractBookChapters':
+          await handleExtractBookChapters(msg);
+          break;
+        case 'getChapterParagraphs':
+          handleGetChapterParagraphs();
+          break;
+        case 'getTTSSegmentContext':
+          await ensureTTSEngine();
+          postToRN('ttsSegmentContext', getTTSSegmentContextFromEngine(msg.cfi, msg.before, msg.after));
+          break;
+        case 'injectChapterTranslations':
+          await handleInjectChapterTranslations(msg.results || [], msg.visibility);
+          break;
+        case 'removeChapterTranslations':
+          handleRemoveChapterTranslations();
+          break;
+      }
+    }
+
+    // ─── Book loading ───
+    async function openBook(msg) {
+      const container = document.getElementById('reader-container');
+      const loading = document.getElementById('loading');
+      currentBookIsPdf = isPDFBookMessage(msg);
+      pdfPageLightCache = {};
+      pdfDocIndexMap = new WeakMap();
+      bookTextMetricsJobId += 1;
+      if (bookTextMetricsTimer) {
+        clearTimeout(bookTextMetricsTimer);
+        bookTextMetricsTimer = null;
+      }
+
+      try {
+        let hasSignalledLoaded = false;
+        const markLoaded = () => {
+          if (loading) loading.classList.add('hidden');
+          if (!hasSignalledLoaded) {
+            hasSignalledLoaded = true;
+            postToRN('loaded', {});
+          }
+        };
+
+        let file;
+        if (msg.base64) {
+          const binary = atob(msg.base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          file = new File([bytes], msg.fileName || 'book.epub', {
+            type: msg.mimeType || 'application/epub+zip'
+          });
+        } else if (msg.uri) {
+          postToRN('debug', {
+            message: `[ReaderFetch] open ${JSON.stringify({
+              uri: msg.uri,
+              fileName: msg.fileName || '',
+              mimeType: msg.mimeType || ''
+            })}`
+          });
+
+          // Try Range-based lazy loading for ZIP-based formats (EPUB, CBZ, FBZ)
+          // This avoids loading the entire file into memory — only reads
+          // the ZIP central directory (~few KB) then fetches entries on demand.
+          const isZipFormat = /\.(epub|cbz|fb2\.zip|fbz)$/i.test(msg.fileName || '');
+          let lazyBook = null;
+
+          if (isZipFormat) {
+            try {
+              // HEAD request to get file size and check Range support
+              const headRes = await fetch(msg.uri, { method: 'HEAD' });
+              const acceptRanges = headRes.headers.get('Accept-Ranges');
+              const contentLength = parseInt(headRes.headers.get('Content-Length'), 10);
+
+              if (acceptRanges === 'bytes' && contentLength > 0) {
+                // Create a HttpRangeReader compatible with zip.js's ZipReader
+                const bookUri = msg.uri;
+                const rangeReader = {
+                  size: contentLength,
+                  async readUint8Array(offset, length) {
+                    const end = Math.min(offset + length - 1, contentLength - 1);
+                    const res = await fetch(bookUri, {
+                      headers: { 'Range': `bytes=${offset}-${end}` }
+                    });
+                    if (!res.ok && res.status !== 206) {
+                      throw new Error(`Range request failed: ${res.status}`);
+                    }
+                    return new Uint8Array(await res.arrayBuffer());
+                  }
+                };
+
+                // Use zip.js and EPUB from the bundled globals
+                const { configure, ZipReader, TextWriter, BlobWriter } = window._zipJs;
+                configure({ useWebWorkers: false });
+                const zipReader = new ZipReader(rangeReader);
+                const entries = await zipReader.getEntries();
+                const map = new Map(entries.map(entry => [entry.filename, entry]));
+
+                const load = (f) => (name, ...args) =>
+                  map.has(name) ? f(map.get(name), ...args) : null;
+                const loadText = load(entry => entry.getData(new TextWriter()));
+                const loadBlob = load((entry, type) => entry.getData(new BlobWriter(type)));
+                const getSize = (name) => map.get(name)?.uncompressedSize ?? 0;
+                const loader = { entries, loadText, loadBlob, getSize };
+
+                // Initialize EPUB from lazy loader
+                const EPUB = window._EPUB;
+                lazyBook = await new EPUB(loader).init();
+              }
+            } catch (lazyErr) {
+              console.warn('[Reader] Lazy loading failed, falling back to full fetch:', lazyErr);
+              lazyBook = null;
+            }
+          }
+
+          // Try Range-based lazy loading for PDF
+          // pdf.js natively supports Range requests via url + disableAutoFetch
+          if (!lazyBook && /\.pdf$/i.test(msg.fileName || '')) {
+            try {
+              const headRes = await fetch(msg.uri, { method: 'HEAD' });
+              const acceptRanges = headRes.headers.get('Accept-Ranges');
+              const contentLength = parseInt(headRes.headers.get('Content-Length'), 10);
+
+              if (acceptRanges === 'bytes' && contentLength > 0 && window._makePDFFromURL) {
+                lazyBook = await window._makePDFFromURL(msg.uri, msg.fileName || 'book.pdf');
+              }
+            } catch (pdfLazyErr) {
+              console.warn('[Reader] PDF lazy loading failed, falling back to full fetch:', pdfLazyErr);
+              lazyBook = null;
+            }
+          }
+
+          if (!lazyBook) {
+            const res = await fetch(msg.uri);
+            const isLocalFileStatus = res.status === 0 && /^file:\/\//i.test(msg.uri);
+            if (!res.ok && !isLocalFileStatus) throw new Error(`Failed to fetch: ${res.status}`);
+            const blob = await res.blob();
+            file = new File([blob], msg.fileName || 'book.epub', {
+              type: msg.mimeType || blob.type || 'application/octet-stream'
+            });
+          } else {
+            // Skip makeBook below — we already have the book object
+            file = lazyBook;
+          }
+        } else {
+          throw new Error('No book data provided');
+        }
+
+        const book = (file && file.sections) ? file : await makeBook(file);
+        currentBook = book;
+        attachBookTransformHandler(book);
+
+        const el = document.createElement('foliate-view');
+        readerElement = el;
+        el.style.width = '100%';
+        el.style.height = '100%';
+        resetPullBookmarkUI(false);
+
+        el.addEventListener('load', (e) => {
+          const { doc, index, primary } = e.detail;
+          markLoaded();
+          normalizeBrOnlyParagraphs(doc);
+          if (primary !== false) {
+            currentSectionUsesVerticalWriting = !el.isFixedLayout && isVerticalDoc(doc);
+            applyRendererFlowMode(el.renderer);
+          }
+          applyDocStyles(doc);
+          if (currentBookIsPdf && typeof index === 'number') {
+            pdfDocIndexMap.set(doc, index);
+            applyPdfPageThemeFilter(doc, index);
+          }
+          attachTapListener(doc);
+          attachPullBookmarkListener(doc);
+          attachSelectionListener(doc);
+          attachNoteLongPress(doc);
+          refreshUserAnnotations(100);
+          // Auto-inject ruby annotations if enabled
+          if (_rubyMode && (_rubyWordDict || _rubyCharDict)) {
+            try { doInjectRubyAnnotations(doc, _rubyMode); } catch(e) {}
+          }
+        });
+
+        var snippetTimer = null;
+        el.addEventListener('relocate', (e) => {
+          markLoaded();
+          hideFootnoteTip();
+          const detail = e.detail;
+          const previousSectionIndex = currentSectionIndex;
+          if (tapNavigationInFlight) {
+            setTimeout(() => {
+              clearTapNavigationLock();
+            }, 80);
+          }
+          let relocatedSectionTotal = totalSections;
+          if (detail.section != null) {
+            currentSectionIndex = typeof detail.section === 'number'
+              ? detail.section
+              : detail.section.current;
+            if (typeof detail.section === 'object' && detail.section.total != null) {
+              relocatedSectionTotal = detail.section.total;
+            }
+          } else if (typeof detail.index === 'number') {
+            currentSectionIndex = detail.index;
+          }
+          const rendererPage = view && view.renderer && typeof view.renderer.page === 'number'
+            ? view.renderer.page
+            : null;
+          const rendererPages = view && view.renderer && typeof view.renderer.pages === 'number'
+            ? view.renderer.pages
+            : null;
+          // renderer.page is 0-based and renderer.pages is the real page count:
+          // the renderer adds no padding pages around a section.
+          const actualPage = rendererPage != null && rendererPages != null && rendererPages > 0
+            ? {
+                current: Math.min(Math.max(rendererPage + 1, 1), rendererPages),
+                total: rendererPages,
+              }
+            : null;
+          postToRN('relocate', {
+            fraction: detail.fraction,
+            section: { current: currentSectionIndex, total: relocatedSectionTotal },
+            location: detail.location,
+            page: actualPage,
+            tocItem: detail.tocItem,
+            pageItem: detail.pageItem,
+            cfi: detail.cfi,
+          });
+          if (currentSectionIndex !== previousSectionIndex) {
+            refreshUserAnnotations(120);
+          }
+          // Extract text after page render settles
+          if (snippetTimer) clearTimeout(snippetTimer);
+          snippetTimer = setTimeout(() => {
+            var snippet = getVisibleTextSnippet(80);
+            if (snippet) postToRN('pageSnippet', { textSnippet: snippet });
+          }, 300);
+        });
+
+        el.addEventListener('draw-annotation', (e) => {
+          const { draw, annotation, doc, range } = e.detail;
+          if (!draw || !annotation) return;
+          console.log('[draw-annotation] annotation:', JSON.stringify(annotation));
+          const color = annotation.color || 'yellow';
+          const colorMap = {
+            red: 'rgba(248, 113, 113, 0.4)',
+            yellow: 'rgba(250, 204, 21, 0.4)',
+            green: 'rgba(74, 222, 128, 0.4)',
+            blue: 'rgba(96, 165, 250, 0.4)',
+            pink: 'rgba(236, 72, 153, 0.4)',
+            purple: 'rgba(192, 132, 252, 0.4)',
+            violet: 'rgba(167, 139, 250, 0.4)',
+            orange: 'rgba(251, 146, 60, 0.5)',
+          };
+          
+          if (annotation.type === 'tts-highlight') {
+            postToRN('debug', {
+              message: `[ttsHighlight] draw-annotation ${JSON.stringify({
+                value: annotation.value,
+                hasRange: !!range,
+                text: range && typeof range.toString === 'function' ? range.toString().slice(0, 48) : '',
+              })}`,
+            });
+            draw(Overlayer.highlight, { color: resolveTTSHighlightColor(annotation.color) });
+            draw(drawTTSHighlight, { color: resolveTTSHighlightColor(annotation.color) });
+          } else if (annotation.note) {
+            console.log('[draw-annotation] has note:', annotation.note);
+            // Draw both highlight and squiggly underline for notes
+            draw(Overlayer.highlight, { color: colorMap[color] || colorMap.yellow });
+            draw(Overlayer.squiggly, { color: '#000000', width: 1.5 });
+            // Register for long-press tooltip
+            if (doc && range && annotation.value) {
+              registerAnnotationRange(doc, annotation.value, range);
+              registerNoteRange(doc, annotation.value, range, annotation.note);
+              console.log('[draw-annotation] registered note range for:', annotation.value);
+            }
+          } else {
+            draw(Overlayer.highlight, { color: colorMap[color] || colorMap.yellow });
+            if (doc && range && isUserTapAnnotation(annotation)) {
+              registerAnnotationRange(doc, annotation.value, range);
+            } else if (doc && annotation.value) {
+              unregisterAnnotationRange(doc, annotation.value);
+            }
+            // Remove stale tooltip registration if note was removed
+            if (doc && annotation.value) {
+              unregisterNoteRange(doc, annotation.value);
+            }
+          }
+        });
+
+        el.addEventListener('delete-annotation', (e) => {
+          const { value, doc } = e.detail || {};
+          if (!value || !doc) return;
+          unregisterAnnotationRange(doc, value);
+          unregisterNoteRange(doc, value);
+        });
+
+        el.addEventListener('show-annotation', (e) => {
+          const { value, index, range } = e.detail;
+          if (!value || !range) return;
+          postShowAnnotation(value, range);
+        });
+
+        el.addEventListener('link', (e) => {
+          const detail = e.detail || {};
+          const anchor = detail.a;
+          const href = detail.href;
+          if (!anchor || !isLikelyFootnoteLink(anchor, href)) return;
+
+          e.preventDefault();
+          const key = getFootnoteTipKey(anchor, href);
+          if (activeFootnoteTipKey === key) {
+            hideFootnoteTip();
+            return;
+          }
+
+          Promise.resolve(resolveFootnoteTipText(anchor, href))
+            .then((text) => {
+              if (!text) {
+                hideFootnoteTip();
+                // Fallback: navigate to the footnote instead of a dead click.
+                if (href && typeof view.goTo === 'function') view.goTo(href);
+                return;
+              }
+              activeFootnoteTipKey = key;
+              if (!positionFootnoteTip(anchor, text)) hideFootnoteTip();
+            })
+            .catch(() => { hideFootnoteTip(); if (href && typeof view.goTo === 'function') view.goTo(href); });
+        });
+
+        container.appendChild(el);
+        view = el;
+        currentSectionUsesVerticalWriting = false;
+
+        await el.open(book);
+
+        if (book.sections) {
+          totalSections = book.sections.length;
+        } else if (book.toc) {
+          totalSections = book.toc.length;
+        }
+
+        // Set search indicator color (use primary theme color instead of red)
+        if (el.setSearchIndicator) {
+          const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary')?.trim() || '#3b82f6';
+          el.setSearchIndicator('outline', { color: primaryColor });
+        }
+
+        if (book.toc) {
+          postToRN('toc', { items: convertTOC(book.toc) });
+        }
+
+        const renderer = el.renderer;
+        if (renderer && !el.isFixedLayout) {
+          applyMobileReflowRendererSizing(renderer);
+          // Default margins (synchronized with the desktop reader formula)
+          applyMobileReflowMargins(renderer, msg.pageMargin || 16);
+        } else if (renderer && el.isFixedLayout) {
+          const paginatedLayout =
+            msg.paginatedLayout === 'single' || msg.paginatedLayout === 'double'
+              ? msg.paginatedLayout
+              : currentPaginatedLayout;
+          currentPaginatedLayout = paginatedLayout;
+          applyFixedLayoutRendererSettings(renderer, currentPaginatedLayout);
+        }
+
+        if (msg.settings) {
+          applySettings(msg.settings);
+        }
+
+        if (el.isFixedLayout) {
+          await el.init({});
+        } else if (msg.lastLocation) {
+          try {
+            await el.init({ lastLocation: msg.lastLocation });
+          } catch (err) {
+            console.warn('[WebView] Failed to init with lastLocation, going to start:', err);
+            await el.goToFraction(0);
+          }
+        } else {
+          await el.goToFraction(0);
+        }
+
+        scheduleBookTextMetrics(book);
+
+      } catch (err) {
+        console.error('[WebView] Error in openBook:', err);
+        const message = `${String(err)}${msg?.uri ? ` (${msg.uri})` : ''}`;
+        loading.innerHTML = '<div class="error-text">' + escapeHtml(message) + '</div>';
+        postToRN('error', { message });
+      }
+    }
+
+    // ─── Search ───
+    async function handleSearch(query) {
+      if (!view || !query) return;
+      searchResults = [];
+      searchIndex = 0;
+
+      try {
+        const iter = view.search({ query });
+        let totalResults = 0;
+        for await (const result of iter) {
+          if (result === 'done') break;
+          if (result.subitems) {
+            totalResults += result.subitems.length;
+            for (const sub of result.subitems) {
+              searchResults.push(sub);
+            }
+          } else if (result.cfi) {
+            totalResults++;
+            searchResults.push(result);
+          }
+          if (result.progress != null) {
+            postToRN('searchProgress', { progress: result.progress });
+          }
+        }
+        postToRN('searchComplete', { count: totalResults });
+        // Navigate to first result
+        if (searchResults.length > 0) {
+          await view.goTo(searchResults[0].cfi);
+          postToRN('searchResult', { index: 0, count: totalResults });
+        }
+      } catch (err) {
+        postToRN('error', { message: 'Search failed: ' + String(err) });
+      }
+    }
+
+    async function navigateToSearchResult(index) {
+      if (index < 0 || index >= searchResults.length) return;
+      searchIndex = index;
+      try {
+        await view.goTo(searchResults[index].cfi);
+        postToRN('searchResult', { index, count: searchResults.length });
+      } catch (err) {
+        postToRN('error', { message: 'Navigate search failed: ' + String(err) });
+      }
+    }
+
+    // ─── Settings ───
+    function applySettings(settings) {
+      if (!view || !view.renderer) return;
+      const renderer = view.renderer;
+      if (settings.justifyBodyText !== undefined) {
+        currentJustifyBodyText = settings.justifyBodyText !== false;
+      }
+      if (settings.smoothReading !== undefined) {
+        currentSmoothReading = settings.smoothReading === true;
+        syncSmoothReadingAttribute(renderer);
+      }
+      // PDF pages are fixed-layout canvases. Reader font, line-height, custom
+      // font and paragraph-spacing rules would move the transparent text layer
+      // away from the canvas and render a second, misaligned copy of the text.
+      if (currentBookIsPdf) {
+        if (settings.paginatedLayout !== undefined) {
+          currentPaginatedLayout =
+            settings.paginatedLayout === 'single' ? 'single' : 'double';
+        }
+        if (view.isFixedLayout) {
+          applyFixedLayoutRendererSettings(renderer, currentPaginatedLayout);
+        }
+        return;
+      }
+
+      // Update custom font state
+      if (settings.customFontFaceCSS !== undefined) {
+        currentCustomFontFaceCSS = settings.customFontFaceCSS || '';
+        injectCustomFontFace(currentCustomFontFaceCSS);
+      }
+      if (settings.customFontFamily !== undefined) {
+        currentCustomFontFamily = settings.customFontFamily || '';
+      }
+      if (settings.useBookFonts !== undefined) {
+        currentUseBookFonts = settings.useBookFonts !== false;
+      }
+
+      if (settings.fontSize !== undefined) {
+        currentFontSize = settings.fontSize;
+      }
+      if (settings.lineHeight !== undefined) {
+        currentLineHeight = settings.lineHeight;
+      }
+      if (settings.paragraphSpacing !== undefined) {
+        currentParagraphSpacing = settings.paragraphSpacing;
+      }
+      if (settings.fontTheme !== undefined) {
+        currentFontTheme = settings.fontTheme || 'default';
+      }
+      if (settings.paginatedLayout !== undefined) {
+        currentPaginatedLayout =
+          settings.paginatedLayout === 'single' ? 'single' : 'double';
+      }
+
+      if (settings.fontSize !== undefined || settings.lineHeight !== undefined || settings.fontTheme !== undefined || settings.paragraphSpacing !== undefined || settings.justifyBodyText !== undefined
+          || settings.customFontFamily !== undefined || settings.customFontFaceCSS !== undefined || settings.useBookFonts !== undefined) {
+        const fontThemes = {
+          default: { cjk: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif', serif: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' },
+          system: { cjk: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif', serif: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' },
+          literata: { cjk: "'Noto Serif SC', 'Source Han Serif SC', serif", serif: "Literata, Georgia, serif" },
+        };
+
+        let fontFamily;
+        if (currentCustomFontFamily) {
+          fontFamily = cssString(currentCustomFontFamily);
+        } else {
+          const theme = fontThemes[currentFontTheme] || fontThemes.default;
+          // For themes with multi-value font stacks (like system default), use as-is
+          // For named font themes (like literata), wrap in quotes
+          const needsQuotes = !theme.cjk.includes(',');
+          if (needsQuotes) {
+            fontFamily = "'" + theme.cjk + "', '" + theme.serif + "', serif";
+          } else {
+            fontFamily = theme.cjk;
+          }
+        }
+        const fSize = currentFontSize;
+        const lh = currentLineHeight;
+        // paragraphSpacing/pageMargin are stored as px tuned at the
+        // default 16px font size. Scale them with the actual font size so
+        // spacing reads proportionally at large font sizes — without this
+        // a 16px paragraphSpacing looks cramped at fontSize 64.
+        // BASELINE matches defaultReadSettings.fontSize in core/stores/settings-store.ts.
+        const BASELINE_FONT_SIZE = 16;
+        const layoutScale = currentFontSize / BASELINE_FONT_SIZE;
+        const ps = Math.round(currentParagraphSpacing * layoutScale);
+
+        // When useBookFonts is enabled (default), do not force the reader
+        // font family onto html/body with !important: the book's own
+        // font-family (on html, body, or any element) must win where specified,
+        // so embedded @font-face families render. The reader font stays as a
+        // zero-specificity fallback via :where(html). Target only html (not
+        // body): body then INHERITS html's font-family, so when the book sets
+        // one on html it propagates to body text instead of body being pinned
+        // to the reader font by a direct rule. When disabled, force the reader
+        // font on html/body and every descendant.
+        //
+        // The monospace rule swaps sides with the same toggle: with book fonts
+        // honored it is zero-specificity (a book's own `pre { font-family: ... }`
+        // — its embedded code font — wins), and when overriding it needs BOTH
+        // !important AND higher specificity, because specificity still breaks
+        // ties between important author declarations: a plain `pre, code, kbd`
+        // at (0,0,1) loses to an authored `body pre { ... !important }` at
+        // (0,0,2). The guarded `:root ... body :is(...)` sits at (0,2,2).
+        // Inner code/kbd/samp INSIDE a pre get an explicit `inherit` instead:
+        // the UA stylesheet declares `code { font-family: monospace }` and a
+        // direct declaration (even a UA one) always beats inheritance, so
+        // exclusion alone would still cut `<pre><code>` off from the book's
+        // font declared on pre. The zero-specificity inherit restores the
+        // chain while any author declaration on the element still wins it.
+        // Standalone inline code keeps the monospace fallback.
+        // Vertical writing (.vrtl/.vltr) keeps its own behavior: the forced
+        // overrides carry the horizontal guard like the pre-existing rules.
+        const readerFontOverride = currentUseBookFonts
+          ? `:where(html) {
+  font-family: var(--readany-font-family);
+}
+:where(pre, :not(pre) > code, :not(pre) > kbd, :not(pre) > samp) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+:where(pre :is(code, kbd, samp)) {
+  font-family: inherit;
+}`
+          : `:root:not(.vrtl):not(.vltr),
+:root:not(.vrtl):not(.vltr) body {
+  font-family: var(--readany-font-family) !important;
+}
+:root:not(.vrtl):not(.vltr) body *:not(svg):not(svg *):not(math):not(math *):not(pre):not(pre *):not(code):not(code *):not(kbd):not(kbd *):not(samp):not(samp *) {
+  font-family: var(--readany-font-family) !important;
+}
+:root:not(.vrtl):not(.vltr) body :is(pre, code, kbd, samp) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}`;
+
+        const baseStyles = `
+          :root {
+            --readany-font-family: ${fontFamily};
+          }
+          :root:not(.vrtl):not(.vltr),
+          :root:not(.vrtl):not(.vltr) body {
+            font-size: ${fSize}px !important;
+            -webkit-text-size-adjust: none;
+            text-size-adjust: none;
+          }
+          ${readerFontOverride}
+          :root:not(.vrtl):not(.vltr) body *:not(svg):not(svg *):not(math):not(math *):not(pre):not(pre *):not(code):not(code *):not(kbd):not(kbd *):not(samp):not(samp *):not(rt):not(rp) {
+            font-size: ${fSize}px !important;
+          }
+          :root:is(.vrtl, .vltr),
+          :root:is(.vrtl, .vltr) body {
+            font-family: var(--readany-font-family);
+            font-size: ${fSize}px;
+            -webkit-text-size-adjust: none;
+            text-size-adjust: none;
+          }
+          :root:not(.vrtl):not(.vltr) p,
+          :root:not(.vrtl):not(.vltr) div,
+          :root:not(.vrtl):not(.vltr) blockquote,
+          :root:not(.vrtl):not(.vltr) dd,
+          :root:not(.vrtl):not(.vltr) li,
+          :root:not(.vrtl):not(.vltr) span {
+            font-size: ${fSize}px !important;
+          }
+          :root:not(.vrtl):not(.vltr) p,
+          :root:not(.vrtl):not(.vltr) div,
+          :root:not(.vrtl):not(.vltr) blockquote,
+          :root:not(.vrtl):not(.vltr) dd,
+          :root:not(.vrtl):not(.vltr) li,
+          :root:not(.vrtl):not(.vltr) span,
+          :root:not(.vrtl):not(.vltr) h1,
+          :root:not(.vrtl):not(.vltr) h2,
+          :root:not(.vrtl):not(.vltr) h3,
+          :root:not(.vrtl):not(.vltr) h4,
+          :root:not(.vrtl):not(.vltr) h5,
+          :root:not(.vrtl):not(.vltr) h6 {
+            line-height: ${lh} !important;
+          }
+          :root:not(.vrtl):not(.vltr) p {
+            margin-top: ${ps}px !important;
+            margin-bottom: ${ps}px !important;
+          }
+          :root:not(.vrtl):not(.vltr) img,
+          :root:not(.vrtl):not(.vltr) svg {
+            max-width: 100% !important;
+          }
+          img,
+          svg {
+            height: auto;
+          }
+          ${getVerticalWritingCompatibilityStyles()}
+          ${currentJustifyBodyText !== false ? (globalThis.ReadAnyJustifiedText?.getJustifyCss?.() ?? globalThis.ReadAnyJustifiedText?.JUSTIFY_CSS ?? '') : ''}
+        `;
+        lastRendererStyles = baseStyles;
+        const themedStyles = injectThemeIntoStyles(
+          baseStyles,
+          currentThemeColors.bg,
+          currentThemeColors.fg,
+          currentThemeColors.primary,
+        );
+        // Pin author-aligned <br>-containing blocks BEFORE injecting the
+        // justify stylesheet, so getComputedStyle reflects the book's own CSS.
+        syncJustifiedTextForAllDocs();
+        if (typeof renderer.setStyles === 'function') {
+          renderer.setStyles(themedStyles);
+        }
+        syncReaderOverrideStylesForAllDocs(themedStyles);
+        syncCustomFontStylesForAllDocs(currentCustomFontFaceCSS);
+      }
+
+      if (settings.pageMargin != null) {
+        // Scale pageMargin with fontSize so the page edges stay
+        // proportionally placed at large font sizes. Same baseline (16) as
+        // the paragraphSpacing scaling above.
+        const BASELINE_FONT_SIZE = 16;
+        const layoutScale = currentFontSize / BASELINE_FONT_SIZE;
+        const margin = Math.round(settings.pageMargin * layoutScale);
+        applyMobileReflowMargins(renderer, margin);
+      }
+
+      if (view && view.isFixedLayout) {
+        applyFixedLayoutRendererSettings(renderer, currentPaginatedLayout);
+      }
+
+      if (settings.viewMode) {
+        currentViewMode = settings.viewMode;
+        applyRendererFlowMode(renderer);
+      }
+    }
+
+    function getScrollNavigationDistance() {
+      if (!view || !view.renderer) return Math.max(1, window.innerHeight - 96);
+      const size = Number(view.renderer.size || 0);
+      const fallbackSize = window.innerHeight || document.documentElement.clientHeight || 720;
+      return Math.max(1, (Number.isFinite(size) && size > 0 ? size : fallbackSize) - 96);
+    }
+
+    function readerNavDebug(event, detail) {
+      try {
+        postToRN('debug', {
+          message: `[ReaderNav] ${Date.now()} ${event} ${JSON.stringify(detail || {})}`,
+        });
+      } catch {}
+    }
+
+    async function goNextByMode(distance, source) {
+      if (!view) return;
+      const detail = {
+        source: source || 'unknown',
+        mode: view.renderer && view.renderer.scrolled ? 'scroll' : 'paginated',
+        section: currentSectionIndex,
+        navigationLocked: !!(view.renderer && view.renderer.navigationLocked),
+      };
+      readerNavDebug('next:start', detail);
+      try {
+        if (view.renderer && view.renderer.scrolled) {
+          await view.next(Math.max(1, Number(distance || getScrollNavigationDistance())));
+        } else {
+          await view.next();
+        }
+        readerNavDebug('next:done', detail);
+      } catch (error) {
+        readerNavDebug('next:error', { ...detail, error: String(error) });
+        throw error;
+      }
+    }
+
+    async function goPrevByMode(distance, source) {
+      if (!view) return;
+      const detail = {
+        source: source || 'unknown',
+        mode: view.renderer && view.renderer.scrolled ? 'scroll' : 'paginated',
+        section: currentSectionIndex,
+        navigationLocked: !!(view.renderer && view.renderer.navigationLocked),
+      };
+      readerNavDebug('prev:start', detail);
+      try {
+        if (view.renderer && view.renderer.scrolled) {
+          await view.prev(Math.max(1, Number(distance || getScrollNavigationDistance())));
+        } else {
+          await view.prev();
+        }
+        readerNavDebug('prev:done', detail);
+      } catch (error) {
+        readerNavDebug('prev:error', { ...detail, error: String(error) });
+        throw error;
+      }
+    }
+
+    function splitCustomFontCSS(css) {
+      const importUrls = [];
+      const fontFaceLines = [];
+      for (const line of (css || '').split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('@import')) {
+          const url = trimmed
+            .replace(/^@import\s+url\(['"]?/, '')
+            .replace(/['"]?\);?\s*$/, '')
+            .trim();
+          if (url) importUrls.push(url);
+        } else {
+          fontFaceLines.push(line);
+        }
+      }
+      return {
+        importUrls,
+        fontFaceCSS: fontFaceLines.join('\n').trim(),
+      };
+    }
+
+    function cssString(value) {
+      return JSON.stringify(String(value || ''));
+    }
+
+    function syncCustomFontStylesForDoc(doc, css) {
+      if (!doc || !doc.head) return;
+      const { importUrls, fontFaceCSS } = splitCustomFontCSS(css);
+
+      doc.querySelectorAll('link.__readany_css_font__').forEach((el) => el.remove());
+      for (const url of importUrls) {
+        const link = doc.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = url;
+        link.className = '__readany_css_font__';
+        doc.head.appendChild(link);
+      }
+
+      const styleId = '__readany_custom_font_face__';
+      let el = doc.getElementById(styleId);
+      if (!el) {
+        el = doc.createElement('style');
+        el.id = styleId;
+        doc.head.appendChild(el);
+      }
+      el.textContent = fontFaceCSS;
+    }
+
+    function syncCustomFontStylesForAllDocs(css) {
+      for (const content of getRendererContents()) {
+        if (!content || !content.doc) continue;
+        syncCustomFontStylesForDoc(content.doc, css);
+      }
+    }
+
+    function syncReaderOverrideStylesForDoc(doc, css) {
+      if (!doc || !doc.head) return;
+      const styleId = '__readany_reader_overrides__';
+      let el = doc.getElementById(styleId);
+      if (!el) {
+        el = doc.createElement('style');
+        el.id = styleId;
+        doc.head.appendChild(el);
+      }
+      el.textContent = css || '';
+      // Keep this style after book styles and our @font-face block so it wins
+      // against EPUBs that define fixed font sizes with !important.
+      doc.head.appendChild(el);
+    }
+
+    function syncReaderOverrideStylesForAllDocs(css) {
+      for (const content of getRendererContents()) {
+        if (!content || !content.doc) continue;
+        syncReaderOverrideStylesForDoc(content.doc, css);
+      }
+    }
+
+    function syncJustifiedTextForAllDocs() {
+      const fixedLayout = Boolean(view?.isFixedLayout);
+      for (const content of getRendererContents()) {
+        if (!content?.doc) continue;
+        const unsupportedLayout = fixedLayout || isVerticalDoc(content.doc);
+        globalThis.ReadAnyJustifiedText?.apply(
+          content.doc,
+          currentJustifyBodyText,
+          unsupportedLayout,
+        );
+      }
+    }
+
+    function injectCustomFontFace(css) {
+      syncCustomFontStylesForDoc(document, css);
+      syncCustomFontStylesForAllDocs(css);
+    }
+
+    function setThemeColors(colors, themeMode) {
+      const bg = colors.background || '#1c1c1e';
+      const fg = colors.foreground || '#e8e8ed';
+      const muted = colors.muted || '#7c7c82';
+      const primary = colors.primary || '#3b82f6';
+
+      currentThemeColors = { bg, fg, muted, primary };
+      if (themeMode === 'dark' || themeMode === 'oled' || themeMode === 'sepia') {
+        currentThemeMode = themeMode;
+      } else {
+        currentThemeMode = 'light';
+      }
+
+      document.documentElement.style.setProperty('--bg', bg);
+      document.documentElement.style.setProperty('--fg', fg);
+      document.documentElement.style.setProperty('--muted', muted);
+      document.documentElement.style.setProperty('--primary', primary);
+      document.body.style.backgroundColor = bg;
+      document.body.style.color = fg;
+
+      if (view && view.renderer && view.renderer.setStyles) {
+        if (currentBookIsPdf) {
+          view.renderer.setStyles(`
+            html, body { background-color: ${bg} !important; }
+            .textLayer span, .textLayer br { color: transparent !important; }
+          `);
+        } else {
+          const currentStyles = lastRendererStyles || '';
+          const themedStyles = injectThemeIntoStyles(currentStyles, bg, fg, primary);
+          view.renderer.setStyles(themedStyles);
+          syncReaderOverrideStylesForAllDocs(themedStyles);
+        }
+      }
+
+      if (view && view.setSearchIndicator) {
+        view.setSearchIndicator('outline', { color: primary });
+      }
+
+      reapplyPdfThemeFilters();
+    }
+
+    // ─── PDF theme inversion (dark/sepia) with per-page smart skip ───
+    var PDF_THEME_FILTERS = {
+      // Mobile dark theme uses #1c1c1e. Mapping white with invert(0.89)
+      // produces approximately #1c1c1c, avoiding a visible page/shell seam.
+      dark: 'invert(0.89)',
+      // OLED maps white PDF paper to true black while preserving the dark-page smart skip.
+      oled: 'invert(1)',
+      // Numerically tuned (invert->sepia->contrast->brightness) so a white PDF
+      // page maps almost exactly to the sepia background #f0e6d2 (rgb 240,230,210).
+      sepia: 'invert(0.245) sepia(0.286) contrast(1.328) brightness(1.005)',
+    };
+    var pdfPageLightCache = {};
+    var pdfDocIndexMap = new WeakMap();
+
+    function analyzeCanvasIsLight(canvas) {
+      var size = 48;
+      var out = document.createElement('canvas');
+      out.width = size;
+      out.height = size;
+      var ctx = out.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return true;
+      try {
+        ctx.drawImage(canvas, 0, 0, size, size);
+        var data = ctx.getImageData(0, 0, size, size).data;
+        var light = 0;
+        for (var i = 0; i < data.length; i += 4) {
+          var lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          if (lum > 200) light++;
+        }
+        // A text page is predominantly light; downsampling washes thin text
+        // into gray, so only rely on how much of the page is clearly light.
+        return light / (size * size) > 0.55;
+      } catch (e) {
+        return true;
+      }
+    }
+
+    function waitForPdfPageCanvas(doc, timeoutMs) {
+      timeoutMs = timeoutMs || 5000;
+      return new Promise(function (resolve) {
+        var win = doc.defaultView || window;
+        var raf = typeof win.requestAnimationFrame === 'function'
+          ? win.requestAnimationFrame.bind(win)
+          : function (cb) { setTimeout(function () { cb(performance.now()); }, 50); };
+        var start = performance.now();
+        var check = function () {
+          var canvas = doc.querySelector('#canvas canvas');
+          if (canvas && canvas.width > 0 && canvas.height > 0) { resolve(canvas); return; }
+          if (performance.now() - start > timeoutMs) { resolve(null); return; }
+          raf(check);
+        };
+        check();
+      });
+    }
+
+    function applyPdfPageThemeFilter(doc, index) {
+      var filter = PDF_THEME_FILTERS[currentThemeMode];
+      var iframe = doc.defaultView ? doc.defaultView.frameElement : null;
+      if (!iframe) return;
+      iframe.style.filter = '';
+      iframe.style.backgroundColor = currentThemeColors.bg;
+      doc.documentElement.style.backgroundColor = currentThemeColors.bg;
+      if (doc.body) doc.body.style.backgroundColor = currentThemeColors.bg;
+      if (!filter) {
+        doc.documentElement.style.setProperty('--readany-pdf-filter', 'none');
+        return;
+      }
+      var isLight = pdfPageLightCache[index];
+      if (isLight === undefined) {
+        waitForPdfPageCanvas(doc).then(function (canvas) {
+          var light = canvas ? analyzeCanvasIsLight(canvas) : true;
+          pdfPageLightCache[index] = light;
+          doc.documentElement.style.setProperty('--readany-pdf-filter', light ? filter : 'none');
+        });
+        return;
+      }
+      doc.documentElement.style.setProperty('--readany-pdf-filter', isLight ? filter : 'none');
+    }
+
+    function reapplyPdfThemeFilters() {
+      if (!currentBookIsPdf) return;
+      var filter = PDF_THEME_FILTERS[currentThemeMode];
+      var contents = getRendererContents();
+      for (var i = 0; i < contents.length; i++) {
+        var doc = contents[i] && contents[i].doc;
+        var iframe = doc && doc.defaultView ? doc.defaultView.frameElement : null;
+        if (!doc || !iframe) continue;
+        var index = pdfDocIndexMap.get(doc);
+        if (index === undefined) continue;
+        iframe.style.filter = '';
+        iframe.style.backgroundColor = currentThemeColors.bg;
+        doc.documentElement.style.backgroundColor = currentThemeColors.bg;
+        if (doc.body) doc.body.style.backgroundColor = currentThemeColors.bg;
+        if (!filter) {
+          doc.documentElement.style.setProperty('--readany-pdf-filter', 'none');
+          continue;
+        }
+        var isLight = pdfPageLightCache[index];
+        doc.documentElement.style.setProperty(
+          '--readany-pdf-filter',
+          isLight === false ? 'none' : filter,
+        );
+      }
+    }
+
+    function injectThemeIntoStyles(baseStyles, bg, fg, primary) {
+      const cleaned = baseStyles.replace(
+        /\/\* __theme_colors__ \*\/[\s\S]*?\/\* __end_theme_colors__ \*\//g,
+        '',
+      );
+      const themeBlock = `/* __theme_colors__ */
+html, body {
+  background-color: ${bg} !important;
+  color: ${fg} !important;
+}
+::selection { background: rgba(59, 130, 246, 0.3) !important; }
+/* __end_theme_colors__ */`;
+      return themeBlock + '\n' + cleaned;
+    }
+
+    // ─── Document styles ───
+    function normalizeBrOnlyParagraphs(doc) {
+      if (!doc || doc.__readany_br_paragraphs_normalized) return;
+      doc.__readany_br_paragraphs_normalized = true;
+
+      const body = doc.body;
+      if (!body || body.querySelectorAll('p').length > 2) return;
+
+      const containers = Array.from(body.querySelectorAll('div, section, article, main'))
+        .filter(shouldNormalizeBrParagraphContainer);
+      if (shouldNormalizeBrParagraphContainer(body)) containers.push(body);
+
+      for (const container of containers) {
+        if (normalizeBrParagraphContainer(doc, container)) return;
+      }
+    }
+
+    function shouldNormalizeBrParagraphContainer(container) {
+      if (!container || container.querySelector('p')) return false;
+
+      const inlineTags = new Set([
+        'a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'cite', 'code', 'em', 'font',
+        'i', 'img', 'kbd', 'mark', 'q', 'ruby', 'rb', 'rp', 'rt', 's', 'small',
+        'span', 'strong', 'sub', 'sup', 'time', 'u', 'var',
+      ]);
+      let brCount = 0;
+      let textLength = 0;
+
+      for (const node of Array.from(container.childNodes)) {
+        if (isBrNode(node)) {
+          brCount += 1;
+        } else if (node.nodeType === 3) {
+          textLength += node.nodeValue.trim().length;
+        } else if (node.nodeType === 1) {
+          const tag = node.localName && node.localName.toLowerCase();
+          if (!inlineTags.has(tag) && node.textContent.trim()) return false;
+        }
+      }
+
+      return brCount >= 4 && textLength >= 80;
+    }
+
+    function normalizeBrParagraphContainer(doc, container) {
+      const originalNodes = Array.from(container.childNodes);
+      const fragment = doc.createDocumentFragment();
+      let pending = [];
+      let breakNodes = [];
+      let breakCount = 0;
+      let paragraphCount = 0;
+
+      const flushPending = () => {
+        while (pending.length && isBlankTextNode(pending[0])) pending.shift();
+        while (pending.length && isBlankTextNode(pending[pending.length - 1])) pending.pop();
+        if (!pending.some(hasParagraphContent)) {
+          pending = [];
+          return;
+        }
+
+        const p = doc.createElement('p');
+        p.className = '__readany_br_paragraph';
+        for (const node of pending) p.appendChild(node);
+        fragment.appendChild(p);
+        pending = [];
+        paragraphCount += 1;
+      };
+
+      const commitBreak = () => {
+        if (!breakNodes.length) return;
+        if (breakCount >= 2) flushPending();
+        else pending.push(...breakNodes);
+        breakNodes = [];
+        breakCount = 0;
+      };
+
+      for (const node of Array.from(container.childNodes)) {
+        if (isBrNode(node)) {
+          breakNodes.push(node);
+          breakCount += 1;
+        } else if (isBlankTextNode(node) && breakCount > 0) {
+          breakNodes.push(node);
+        } else {
+          commitBreak();
+          pending.push(node);
+        }
+      }
+
+      commitBreak();
+      flushPending();
+
+      if (paragraphCount < 2) {
+        container.replaceChildren(...originalNodes);
+        return false;
+      }
+      container.replaceChildren(fragment);
+      container.setAttribute('data-readany-br-paragraphs', '');
+      return true;
+    }
+
+    function isBrNode(node) {
+      return node && node.nodeType === 1 && node.localName && node.localName.toLowerCase() === 'br';
+    }
+
+    function isBlankTextNode(node) {
+      return node && node.nodeType === 3 && !node.nodeValue.trim();
+    }
+
+    function hasParagraphContent(node) {
+      if (!node) return false;
+      if (node.nodeType === 3) return !!node.nodeValue.trim();
+      if (node.nodeType === 1) return !isBrNode(node) && !!node.textContent.trim();
+      return false;
+    }
+
+    function isVerticalDoc(doc) {
+      const root = doc && doc.documentElement;
+      if (!root) return false;
+      const body = doc.body;
+      if (!body || !doc.defaultView) return false;
+      const style = doc.defaultView.getComputedStyle(body);
+      if (style.writingMode === 'vertical-rl' || style.writingMode === 'vertical-lr') return true;
+      const firstChild = body.querySelector(':scope > :not([cfi-inert])');
+      if (!firstChild) return false;
+      const childStyle = doc.defaultView.getComputedStyle(firstChild);
+      return childStyle.writingMode === 'vertical-rl' || childStyle.writingMode === 'vertical-lr';
+    }
+
+    function getColorLuminance(color) {
+      const match = color && color.match(/rgba?\(\s*([\d.]+)[, ]+\s*([\d.]+)[, ]+\s*([\d.]+)/i);
+      if (!match) return 1;
+      const channels = match.slice(1, 4).map((value) => Number(value) / 255);
+      return channels.reduce((sum, channel) => sum + channel, 0) / channels.length;
+    }
+
+    // EPUBs often hard-code black/dark-gray body text. In dark mode, only
+    // brighten simple text leaves with transparent backgrounds; preserve
+    // links, code, media, and nested/colorful markup authored by the book.
+    function compensateDarkText(doc, foreground, background) {
+      const darkTheme = getColorLuminance(background) < 0.35;
+      const candidates = doc.querySelectorAll('p, div, span, li, dd, dt, h1, h2, h3, h4, h5, h6, td, th, caption, figcaption, label');
+      for (const element of candidates) {
+        element.style.removeProperty('--readany-dark-text-color');
+        if (!darkTheme || /^(a|code|pre|kbd|samp)$/i.test(element.tagName)) continue;
+        if (!Array.from(element.childNodes).some((node) => node.nodeType === 3 && node.nodeValue.trim())) continue;
+        const computed = doc.defaultView.getComputedStyle(element);
+        if (computed.backgroundColor !== 'rgba(0, 0, 0, 0)' && computed.backgroundColor !== 'transparent') continue;
+        if (getColorLuminance(computed.color) >= 0.22) continue;
+        element.style.setProperty('--readany-dark-text-color', foreground);
+        element.style.setProperty('color', 'var(--readany-dark-text-color)', 'important');
+      }
+    }
+
+    function applyDocStyles(doc) {
+      if (currentBookIsPdf) {
+        const styleId = '__readany_pdf_styles__';
+        let style = doc.getElementById(styleId);
+        if (!style) {
+          style = doc.createElement('style');
+          style.id = styleId;
+          doc.head.appendChild(style);
+        }
+        style.textContent = `
+          html, body { background-color: ${currentThemeColors.bg} !important; }
+          .textLayer span, .textLayer br { color: transparent !important; }
+        `;
+        return;
+      }
+      syncCustomFontStylesForDoc(doc, currentCustomFontFaceCSS);
+      const verticalDoc = isVerticalDoc(doc);
+      globalThis.ReadAnyJustifiedText?.apply(
+        doc,
+        currentJustifyBodyText,
+        verticalDoc || Boolean(view?.isFixedLayout),
+      );
+      if (!verticalDoc) {
+        for (const img of doc.querySelectorAll('img')) {
+          img.style.webkitUserDrag = 'none';
+          img.style.touchAction = 'manipulation';
+        }
+      }
+      const style = doc.createElement('style');
+      const { bg, fg, primary } = currentThemeColors;
+      style.textContent = `
+        * { -webkit-touch-callout: none !important; -webkit-user-select: text !important; user-select: text !important; }
+        html, body { background-color: ${bg} !important; color: ${fg} !important; }
+        img, picture, svg, image, canvas {
+          -webkit-user-drag: none !important;
+          touch-action: manipulation !important;
+        }
+        ::selection { background: rgba(250, 204, 21, 0.4) !important; }
+        ${verticalDoc ? getVerticalWritingCompatibilityStyles() : ''}
+      `;
+      doc.head.appendChild(style);
+      compensateDarkText(doc, fg, bg);
+      if (lastRendererStyles) {
+        const themedStyles = injectThemeIntoStyles(
+          lastRendererStyles,
+          currentThemeColors.bg,
+          currentThemeColors.fg,
+          currentThemeColors.primary,
+        );
+        syncReaderOverrideStylesForDoc(doc, themedStyles);
+      }
+      doc.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); return false; }, true);
+    }
+
+    function isImageOnlyAnchor(anchor) {
+      if (!anchor || !anchor.matches || !anchor.matches('a[href]')) return false;
+      if ((anchor.textContent || '').trim().length > 0) return false;
+      return !!anchor.querySelector('img, picture, svg, image, canvas');
+    }
+
+    // ─── Tap detection ───
+    function attachTapListener(doc) {
+      if (doc.__readany_tap) return;
+      doc.__readany_tap = true;
+
+      const MAX_TAP_MS = 250;
+      const MOVE_THRESHOLD = 12;
+      let tapState = null;
+
+      doc.addEventListener('touchstart', (e) => {
+        if (bookmarkPullGestureActive) {
+          tapState = null;
+          return;
+        }
+        if (doc.__readany_selection_interaction) {
+          tapState = null;
+          return;
+        }
+        if (e.touches.length !== 1) {
+          tapState = null;
+          return;
+        }
+        const touch = e.touches[0];
+        const hitNote = isPointInNoteRange(doc, touch.clientX, touch.clientY);
+        const hitAnnotation = hitNote || isPointInAnnotationRange(doc, touch.clientX, touch.clientY);
+        tapState = {
+          startedAt: Date.now(),
+          startX: touch.clientX,
+          startY: touch.clientY,
+          moved: false,
+          target: e.target,
+          noteRangeHit: !!hitNote,
+          annotationRangeHit: hitAnnotation,
+        };
+        if (hitAnnotation) armNoteTapGuard(doc);
+      }, { passive: true });
+
+      doc.addEventListener('touchmove', (e) => {
+        if (!tapState || e.touches.length !== 1) return;
+        if (bookmarkPullGestureActive) {
+          tapState = null;
+          return;
+        }
+        if (doc.__readany_selection_interaction) {
+          tapState = null;
+          return;
+        }
+        const touch = e.touches[0];
+        if (
+          Math.abs(touch.clientX - tapState.startX) > MOVE_THRESHOLD ||
+          Math.abs(touch.clientY - tapState.startY) > MOVE_THRESHOLD
+        ) {
+          tapState.moved = true;
+        }
+      }, { passive: true });
+
+      doc.addEventListener('touchcancel', () => {
+        tapState = null;
+      }, { passive: true });
+
+      doc.addEventListener('touchend', (e) => {
+        if (doc.__readany_selection_tap_guard_until > Date.now() && !doc.__readany_selection_tap_guard_consumed) {
+          doc.__readany_selection_tap_guard_consumed = true;
+          tapState = null;
+          return;
+        }
+        if (bookmarkPullGestureActive || tapNavigationInFlight) {
+          tapState = null;
+          return;
+        }
+        if (doc.__readany_selection_interaction) {
+          tapState = null;
+          return;
+        }
+
+        const state = tapState;
+        tapState = null;
+        if (!state || state.moved || e.changedTouches.length !== 1) return;
+        if (Date.now() - state.startedAt > MAX_TAP_MS) return;
+        const touch = e.changedTouches[0];
+        const hitAnnotation = state.annotationRangeHit || isPointInAnnotationRange(doc, touch.clientX, touch.clientY);
+        if (hitAnnotation) {
+          e.preventDefault();
+          e.stopPropagation();
+          postShowAnnotation(hitAnnotation.cfi, hitAnnotation.range);
+          return;
+        }
+
+        if (state.noteRangeHit || isNoteTapGuardActive(doc)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+
+        const target = e.target || state.target;
+        const interactiveTarget = target && target.closest
+          ? target.closest('a[href], audio, video, button, input, select, textarea')
+          : null;
+        if (interactiveTarget && !isImageOnlyAnchor(interactiveTarget)) {
+          if (!interactiveTarget.closest('a[href]')) hideFootnoteTip();
+          return;
+        }
+
+        hideFootnoteTip();
+
+        const sel = doc.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
+
+        let viewW;
+        try { viewW = window.top.innerWidth || window.innerWidth; } catch { viewW = window.innerWidth; }
+        const iframe = doc.defaultView && doc.defaultView.frameElement;
+        const iframeLeft = iframe ? iframe.getBoundingClientRect().left : 0;
+        const viewportX = e.changedTouches[0].clientX + iframeLeft;
+        const normalizedX = ((viewportX % viewW) + viewW) % viewW;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const centerStart = viewW * 0.375;
+        const centerEnd = viewW * 0.625;
+
+        if (normalizedX >= centerStart && normalizedX <= centerEnd) {
+          e.preventDefault();
+          e.stopPropagation();
+          postToRN('tap', {});
+          return;
+        }
+
+        // In scroll mode, only toggle toolbar (center tap) — no page navigation
+        if (currentViewMode === 'scroll') {
+          postToRN('tap', {});
+          return;
+        }
+
+        armTapNavigationLock();
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (normalizedX < centerStart) {
+          if (view) goPrevByMode(undefined, 'tap:left');
+        } else {
+          if (view) goNextByMode(undefined, 'tap:right');
+        }
+      }, { passive: false, capture: true });
+    }
+
+    function attachPullBookmarkListener(doc) {
+      if (doc.__readany_pullBookmark) return;
+      doc.__readany_pullBookmark = true;
+
+      const ACTIVATE_DISTANCE = 10;
+      const INTENT_THRESHOLD = 14;
+      const VERTICAL_INTENT_RATIO = 1.35;
+      const HORIZONTAL_CANCEL_RATIO = 1.05;
+      const PULL_THRESHOLD = 60;
+      const MAX_PULL_DISTANCE = 92;
+      const COOLDOWN_MS = 700;
+      let pullState = null;
+      let lastTriggeredAt = 0;
+
+      doc.addEventListener('touchstart', (e) => {
+        if (!view || e.touches.length !== 1 || currentViewMode === 'scroll') {
+          pullState = null;
+          return;
+        }
+
+        const target = e.target;
+        if (target && target.closest && target.closest('a[href], audio, video, button, input, select, textarea')) {
+          pullState = null;
+          return;
+        }
+
+        const sel = doc.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
+          pullState = null;
+          return;
+        }
+
+        const touch = e.touches[0];
+        pullState = {
+          startX: touch.clientX,
+          startY: touch.clientY,
+          active: false,
+          armed: false,
+          cancelled: false,
+        };
+      }, { passive: true, capture: true });
+
+      doc.addEventListener('touchmove', (e) => {
+        if (!pullState || e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - pullState.startX;
+        const deltaY = touch.clientY - pullState.startY;
+        const absX = Math.abs(deltaX);
+        const absY = Math.abs(deltaY);
+
+        if (pullState.cancelled) return;
+
+        if (!pullState.active) {
+          if (absX < INTENT_THRESHOLD && absY < INTENT_THRESHOLD) return;
+
+          if (
+            absX >= Math.max(INTENT_THRESHOLD, absY * HORIZONTAL_CANCEL_RATIO) ||
+            deltaY < -INTENT_THRESHOLD / 2
+          ) {
+            pullState.cancelled = true;
+            resetPullBookmarkUI(false);
+            return;
+          }
+
+          if (deltaY < ACTIVATE_DISTANCE) return;
+          if (absY < Math.max(INTENT_THRESHOLD, absX * VERTICAL_INTENT_RATIO)) return;
+
+          pullState.active = true;
+          // Lock paginator's touch-driven page turns while we own the gesture,
+          // so a slightly diagonal pull-down can't drift the page horizontally.
+          try {
+            if (typeof window.setNavigationLocked === 'function') {
+              window.setNavigationLocked(true);
+            }
+          } catch (err) { /* renderer not ready yet — no-op */ }
+        }
+
+        if (deltaY <= 0) {
+          resetPullBookmarkUI(false);
+          return;
+        }
+
+        const armed = deltaY >= PULL_THRESHOLD;
+        pullState.armed = armed;
+        e.preventDefault();
+        e.stopPropagation();
+        updatePullBookmarkUI(Math.min(MAX_PULL_DISTANCE, deltaY), armed);
+      }, { passive: false, capture: true });
+
+      doc.addEventListener('touchend', (e) => {
+        const state = pullState;
+        pullState = null;
+        try {
+          if (typeof window.setNavigationLocked === 'function') {
+            window.setNavigationLocked(false);
+          }
+        } catch (err) { /* no-op */ }
+        if (!state) return;
+
+        if (state.active) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+
+        const shouldToggle =
+          !!state.active &&
+          !!state.armed &&
+          !state.cancelled &&
+          e.changedTouches.length === 1 &&
+          Date.now() - lastTriggeredAt >= COOLDOWN_MS;
+
+        resetPullBookmarkUI(true);
+
+        if (shouldToggle) {
+          lastTriggeredAt = Date.now();
+          postToRN('toggleBookmark', {});
+        }
+      }, { passive: false, capture: true });
+
+      doc.addEventListener('touchcancel', () => {
+        pullState = null;
+        try {
+          if (typeof window.setNavigationLocked === 'function') {
+            window.setNavigationLocked(false);
+          }
+        } catch (err) { /* no-op */ }
+        resetPullBookmarkUI(true);
+      }, { passive: true, capture: true });
+    }
+
+    // ─── Selection detection ───
+    function attachSelectionListener(doc) {
+      if (doc.__readany_selection) return;
+      doc.__readany_selection = true;
+
+      let selTimer = null;
+      let iosHackPending = false;
+      let selectionClearTimer = null;
+      const isIOSLike = (() => {
+        try {
+          return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        } catch {
+          return false;
+        }
+      })();
+
+      function markSelectionInteraction(active) {
+        doc.__readany_selection_interaction = !!active;
+      }
+
+      function scheduleClearSelectionInteraction() {
+        if (selectionClearTimer) clearTimeout(selectionClearTimer);
+        selectionClearTimer = setTimeout(() => {
+          if (!getSelectionRange(doc.getSelection())) {
+            markSelectionInteraction(false);
+          }
+        }, 120);
+      }
+
+      doc.addEventListener('touchend', () => {
+        if (!isIOSLike) return;
+        const currentSelection = doc.getSelection();
+        if (currentSelection && !currentSelection.isCollapsed && currentSelection.toString().trim()) {
+          armSelectionTapGuardForDocument(doc);
+        }
+        setTimeout(() => {
+          if (iosHackPending) return;
+          const sel = doc.getSelection();
+          if (!sel || sel.isCollapsed || !sel.toString().trim() || !sel.rangeCount) return;
+          armSelectionTapGuardForDocument(doc);
+          const range = sel.getRangeAt(0);
+          // iOS hack: remove and re-add to dismiss system menu
+          iosHackPending = true;
+          doc.__readany_isJiggling = true;
+          sel.removeAllRanges();
+          setTimeout(() => {
+            sel.addRange(range);
+            doc.__readany_isJiggling = false;
+            iosHackPending = false;
+            emitSelection(doc, sel, range);
+          }, 30);
+        }, 50);
+      }, { passive: true, capture: true });
+
+      doc.addEventListener('selectionchange', () => {
+        if (doc.__readany_isJiggling) return;
+        if (iosHackPending) return;
+        if (selTimer) clearTimeout(selTimer);
+        selTimer = setTimeout(() => {
+          const sel = doc.getSelection();
+          if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+            scheduleClearSelectionInteraction();
+            postToRN('selectionCleared', {});
+            return;
+          }
+          if (!sel.rangeCount) return;
+          const range = sel.getRangeAt(0);
+          markSelectionInteraction(true);
+          emitSelection(doc, sel, range);
+        }, 300);
+      });
+
+      doc.addEventListener('selectstart', () => {
+        markSelectionInteraction(true);
+      });
+
+      doc.addEventListener('pointermove', () => {
+        if (getSelectionRange(doc.getSelection())) markSelectionInteraction(true);
+      }, { passive: true });
+
+      doc.addEventListener('touchmove', () => {
+        if (getSelectionRange(doc.getSelection())) markSelectionInteraction(true);
+      }, { passive: true, capture: true });
+
+      doc.addEventListener('touchend', () => {
+        scheduleClearSelectionInteraction();
+      }, { passive: true });
+
+      doc.addEventListener('touchcancel', () => {
+        scheduleClearSelectionInteraction();
+      }, { passive: true });
+    }
+
+    function emitSelection(doc, sel, range) {
+      const text = getRangeTextWithoutRuby(range, sel.toString());
+      if (!text) return;
+      // iOS may emit one synthetic tap 100-200ms after the selection handle is
+      // released. Consume only that one trailing tap; later user taps remain
+      // available for immediate page navigation.
+      armSelectionTapGuardForDocument(doc);
+
+      const rect = range.getBoundingClientRect();
+      const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
+      const firstRect = rects[0] || rect;
+      const lastRect = rects[rects.length - 1] || rect;
+      const iframe = doc.defaultView && doc.defaultView.frameElement;
+      const iframeRect = iframe ? iframe.getBoundingClientRect() : { left: 0, top: 0 };
+
+      let cfi = '';
+      try {
+        if (view && view.getCFI) {
+          const contents = view.renderer && view.renderer.getContents ? view.renderer.getContents() : [];
+          const found = contents.find(c => c.doc === doc);
+          if (found) cfi = view.getCFI(found.index, range) || '';
+        }
+      } catch { /* ignore */ }
+
+      postToRN('selection', {
+        text,
+        cfi,
+        position: {
+          x: iframeRect.left + rect.left + rect.width / 2,
+          y: iframeRect.top + firstRect.top - 4,
+          selectionTop: iframeRect.top + firstRect.top,
+          selectionBottom: iframeRect.top + lastRect.bottom,
+        },
+      });
+    }
+
+    function armSelectionTapGuardForDocument(doc) {
+      doc.__readany_selection_tap_guard_until = Date.now() + 350;
+      doc.__readany_selection_tap_guard_consumed = false;
+    }
+
+    // ─── TOC conversion ───
+    function convertTOC(toc, level) {
+      if (!toc) return [];
+      level = level || 0;
+      return toc.map(function (item, i) {
+        return {
+          id: String(item.id != null ? item.id : 'toc-' + level + '-' + i),
+          title: item.label || 'Chapter ' + (i + 1),
+          level: level,
+          href: item.href,
+          subitems: item.subitems && item.subitems.length > 0
+            ? convertTOC(item.subitems, level + 1)
+            : undefined,
+        };
+      });
+    }
+
+    // ─── Utility ───
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function getSelectionRange(selection) {
+      if (!selection || !selection.rangeCount) return null;
+      const range = selection.getRangeAt(0);
+      return range && !range.collapsed ? range : null;
+    }
+
+    function getRangeTextWithoutRuby(range, fallback) {
+      try {
+        const fragment = range.cloneContents();
+        fragment.querySelectorAll('rt, rp').forEach(function (node) {
+          node.remove();
+        });
+        const text = (fragment.textContent || '').trim();
+        if (text) return text;
+      } catch {}
+      return (fallback || '').trim();
+    }
+
+    function getVisibleTextSnippet(maxLen) {
+      maxLen = maxLen || 80;
+      try {
+        if (!view || !view.renderer) return '';
+        var renderer = view.renderer;
+        var contents = renderer.getContents && renderer.getContents();
+        if (!contents || !contents[0] || !contents[0].doc) return '';
+        var doc = contents[0].doc;
+        var win = doc.defaultView;
+        if (!win) return '';
+
+        var texts = [];
+        var totalLen = 0;
+
+        // Check if we're in paginated mode (CSS columns)
+        var isPaginated = !renderer.scrolled;
+        var pSize = renderer.size;   // container visible width (one page)
+        var pStart = renderer.start; // abs(scrollLeft)
+
+        var walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: function(node) {
+            if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_SKIP;
+            if (isTTSFootnoteMarker(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+            if (shouldSkipTTSNode(node.parentElement)) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+
+        var textNode = walker.nextNode();
+        while (textNode && totalLen < maxLen) {
+          var range = doc.createRange();
+          range.selectNodeContents(textNode);
+          var rect = range.getBoundingClientRect();
+          
+          var isVisible = false;
+          if (isPaginated && pSize > 0) {
+            // In paginated mode, first page starts at scroll offset = pSize
+            // So visible range in iframe coords is [start - size, end - size]
+            var visibleLeft = pStart - pSize;
+            var visibleRight = pStart;
+            isVisible = rect.right > visibleLeft && rect.left < visibleRight && rect.width > 0;
+          } else {
+            // Scrolled mode: use iframe viewport dimensions
+            var vw = win.innerWidth;
+            var vh = win.innerHeight;
+            isVisible = rect.width > 0 && rect.height > 0 &&
+                rect.right > 0 && rect.left < vw &&
+                rect.bottom > 0 && rect.top < vh;
+          }
+          
+          if (isVisible) {
+            var t = normalizeTTSText(textNode.nodeValue);
+            if (t) { texts.push(t); totalLen += t.length; }
+          }
+          textNode = walker.nextNode();
+        }
+        var result = normalizeTTSText(texts.join(' '));
+        return result.length > maxLen ? result.slice(0, maxLen) : result;
+      } catch (e) { return ''; }
+    }
+
+    // Get all visible text for TTS (no length limit)
+    function doGetVisibleText() {
+      try {
+        if (!view || !view.renderer) {
+          return { text: '', error: 'no view or renderer' };
+        }
+        var renderer = view.renderer;
+        var contents = renderer.getContents && renderer.getContents();
+        if (!contents || !contents[0] || !contents[0].doc) {
+          return { text: '', error: 'no contents or doc' };
+        }
+        var doc = contents[0].doc;
+        var win = doc.defaultView;
+        if (!win) {
+          return { text: '', error: 'no win' };
+        }
+
+        var texts = [];
+
+        // Check if we're in paginated mode (CSS columns)
+        var isPaginated = !renderer.scrolled;
+        var pSize = renderer.size;   // container visible width (one page)
+        var pStart = renderer.start; // abs(scrollLeft)
+
+        var walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: function(node) {
+            if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_SKIP;
+            if (isTTSFootnoteMarker(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+            if (shouldSkipTTSNode(node.parentElement)) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+
+        var textNode = walker.nextNode();
+        var nodeCount = 0;
+        var visibleCount = 0;
+        var firstRectInfo = null;
+        while (textNode) {
+          nodeCount++;
+          var range = doc.createRange();
+          range.selectNodeContents(textNode);
+          var rect = range.getBoundingClientRect();
+          
+          if (nodeCount === 1) {
+            firstRectInfo = { left: rect.left, right: rect.right, width: rect.width };
+          }
+          
+          var isVisible = false;
+          if (isPaginated && pSize > 0) {
+            // In paginated mode, the iframe is expanded to the full content width.
+            // The outer container scrolls to show the current "page".
+            // First page starts at scroll offset = pSize (page 0 is padding).
+            // So visible range in iframe coords is [start - size, end - size].
+            var visibleLeft = pStart - pSize;
+            var visibleRight = pStart;
+            isVisible = rect.right > visibleLeft && rect.left < visibleRight && rect.width > 0;
+          } else {
+            // Scrolled mode: use iframe viewport dimensions
+            var vw = win.innerWidth;
+            var vh = win.innerHeight;
+            isVisible = rect.width > 0 && rect.height > 0 &&
+                rect.right > 0 && rect.left < vw &&
+                rect.bottom > 0 && rect.top < vh;
+          }
+          
+          if (isVisible) {
+            visibleCount++;
+            var t = normalizeTTSText(textNode.nodeValue);
+            if (t) { texts.push(t); }
+          }
+          textNode = walker.nextNode();
+        }
+        
+        var result = normalizeTTSText(texts.join(' '));
+        return { 
+          text: result, 
+          debug: {
+            isPaginated: isPaginated,
+            pSize: pSize,
+            pStart: pStart,
+            nodeCount: nodeCount,
+            visibleCount: visibleCount,
+            firstRect: firstRectInfo
+          }
+        };
+      } catch (e) { 
+        return { text: '', error: String(e) };
+      }
+    }
+
+    function getCurrentRendererContent() {
+      const contents = getRendererContents();
+      return contents[0] || null;
+    }
+
+    function anchorToRange(doc, anchor) {
+      if (!doc || !anchor) return null;
+      if (anchor instanceof Range) return anchor;
+      if (!(anchor instanceof Node)) return null;
+      try {
+        const range = doc.createRange();
+        if (anchor.nodeType === Node.TEXT_NODE) {
+          range.selectNodeContents(anchor);
+        } else {
+          range.selectNode(anchor);
+        }
+        return range;
+      } catch (e) {
+        console.log('[ttsRange] failed to normalize anchor:', e);
+        return null;
+      }
+    }
+
+    function resolveRangeForCfi(cfi) {
+      if (!view || !cfi || !view.resolveCFI) return null;
+      const contents = getRendererContents();
+      if (!contents.length) return null;
+
+      try {
+        const resolved = view.resolveCFI(cfi);
+        if (!resolved) return null;
+
+        if (resolved.index != null) {
+          const direct = contents.find((content) => content.index === resolved.index && content.doc);
+          if (direct?.doc && typeof resolved.anchor === 'function') {
+            try {
+              const range = anchorToRange(direct.doc, resolved.anchor(direct.doc));
+              if (range) return { range, doc: direct.doc, index: direct.index ?? resolved.index };
+            } catch {}
+          }
+        }
+
+        if (typeof resolved.anchor === 'function') {
+          for (const content of contents) {
+            if (!content?.doc) continue;
+            try {
+              const range = anchorToRange(content.doc, resolved.anchor(content.doc));
+              if (range) return { range, doc: content.doc, index: content.index ?? resolved.index ?? 0 };
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.log('[ttsRange] failed to resolve CFI:', e);
+      }
+
+      return null;
+    }
+
+    function getPaginatedVisibleRangeCandidates(renderer) {
+      const start = Number(renderer && renderer.start || 0);
+      const end = Number(renderer && renderer.end || 0);
+      const size = Number(renderer && renderer.size || 0);
+      const candidates = [];
+
+      if (Number.isFinite(start) && Number.isFinite(size) && size > 0) {
+        candidates.push({ left: start - size, right: start, source: 'legacy-offset' });
+        candidates.push({ left: start, right: start + size, source: 'size-fallback' });
+      }
+
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+        candidates.push({ left: start, right: end, source: 'renderer' });
+      }
+
+      return candidates.filter((candidate, index, list) => {
+        return candidate.right > candidate.left &&
+          list.findIndex((item) => item.left === candidate.left && item.right === candidate.right) === index;
+      });
+    }
+
+    function rectIntersectsPaginatedRange(rect, range) {
+      return rect.right > range.left && rect.left < range.right;
+    }
+
+    function scorePaginatedVisibleRange(doc, range) {
+      if (!doc || !doc.body) return 0;
+      const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+        acceptNode: function (node) {
+          if (isInsideRubyAnnotation(node)) return NodeFilter.FILTER_REJECT;
+          if (isTTSFootnoteMarker(node.nodeValue || '')) return NodeFilter.FILTER_REJECT;
+          if (shouldSkipTTSNode(node.parentElement)) return NodeFilter.FILTER_REJECT;
+          return node.nodeValue && normalizeTTSText(node.nodeValue)
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_SKIP;
+        },
+      });
+      let score = 0;
+      let visited = 0;
+      let textNode = walker.nextNode();
+      while (textNode && visited < 500) {
+        visited += 1;
+        const text = normalizeTTSText(textNode.nodeValue || '');
+        if (text) {
+          try {
+            const textRange = doc.createRange();
+            textRange.selectNodeContents(textNode);
+            const rects = Array.from(textRange.getClientRects ? textRange.getClientRects() : []);
+            if (rects.some((rect) => rect.width > 0 && rect.height > 0 && rectIntersectsPaginatedRange(rect, range))) {
+              score += Math.min(text.length, 120);
+            }
+          } catch {}
+        }
+        textNode = walker.nextNode();
+      }
+      return score;
+    }
+
+    function pickPaginatedVisibleRange(doc, renderer) {
+      const candidates = getPaginatedVisibleRangeCandidates(renderer);
+      if (candidates.length <= 1) return candidates[0] || null;
+
+      const legacyRange = candidates.find((range) => range.source === 'legacy-offset') || null;
+      if (legacyRange && scorePaginatedVisibleRange(doc, legacyRange) > 0) return legacyRange;
+
+      const rendererRange = candidates.find((range) => range.source === 'renderer') || null;
+      if (rendererRange && scorePaginatedVisibleRange(doc, rendererRange) > 0) return rendererRange;
+
+      const fallbackRange = candidates.find((range) => range.source === 'size-fallback') || null;
+      if (fallbackRange && scorePaginatedVisibleRange(doc, fallbackRange) > 0) return fallbackRange;
+
+      return legacyRange || rendererRange || fallbackRange || candidates[0] || null;
+    }
+
+    let ttsVisibleRangeByDoc = new WeakMap();
+
+    function getVisibleRangeForTTSDoc(doc, renderer) {
+      if (!doc) return null;
+      if (ttsVisibleRangeByDoc.has(doc)) return ttsVisibleRangeByDoc.get(doc) || null;
+      const range = pickPaginatedVisibleRange(doc, renderer);
+      ttsVisibleRangeByDoc.set(doc, range);
+      return range;
+    }
+
+    function getRangeDocument(range) {
+      const container = range && range.commonAncestorContainer;
+      if (!container) return null;
+      return container.nodeType === Node.DOCUMENT_NODE ? container : container.ownerDocument;
+    }
+
+    function getReaderViewportRect() {
+      const viewport = {
+        left: 0,
+        top: 0,
+        right: window.innerWidth || document.documentElement.clientWidth || 0,
+        bottom: window.innerHeight || document.documentElement.clientHeight || 0,
+      };
+      try {
+        const viewRect = view && view.getBoundingClientRect ? view.getBoundingClientRect() : null;
+        if (!viewRect || viewRect.width <= 0 || viewRect.height <= 0) return viewport;
+        return {
+          left: Math.max(viewRect.left, viewport.left),
+          top: Math.max(viewRect.top, viewport.top),
+          right: Math.min(viewRect.right, viewport.right),
+          bottom: Math.min(viewRect.bottom, viewport.bottom),
+        };
+      } catch (e) {
+        return viewport;
+      }
+    }
+
+    function mapIframeRectToHost(rect, doc) {
+      try {
+        const iframe = doc && doc.defaultView && doc.defaultView.frameElement;
+        if (!iframe || !iframe.getBoundingClientRect) return rect;
+        const iframeRect = iframe.getBoundingClientRect();
+        const scaleX = iframe.clientWidth > 0 ? iframeRect.width / iframe.clientWidth : 1;
+        const scaleY = iframe.clientHeight > 0 ? iframeRect.height / iframe.clientHeight : 1;
+        return {
+          left: iframeRect.left + rect.left * scaleX,
+          top: iframeRect.top + rect.top * scaleY,
+          right: iframeRect.left + rect.right * scaleX,
+          bottom: iframeRect.top + rect.bottom * scaleY,
+          width: rect.width * scaleX,
+          height: rect.height * scaleY,
+        };
+      } catch (e) {
+        return rect;
+      }
+    }
+
+    function isHostRectVisible(rect) {
+      if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+      const viewport = getReaderViewportRect();
+      return rect.right > viewport.left &&
+        rect.left < viewport.right &&
+        rect.bottom > viewport.top &&
+        rect.top < viewport.bottom;
+    }
+
+    function getContentHostRect(content) {
+      const doc = content && content.doc;
+      const iframe = doc && doc.defaultView && doc.defaultView.frameElement;
+      if (iframe && iframe.getBoundingClientRect) {
+        const rect = iframe.getBoundingClientRect();
+        return {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        };
+      }
+      if (doc && doc.body) {
+        return mapIframeRectToHost(doc.body.getBoundingClientRect(), doc);
+      }
+      return null;
+    }
+
+    function getVisibleContentsForTTS(contents, renderer) {
+      if (!renderer || !renderer.scrolled) return contents;
+      return (contents || [])
+        .filter(function(content) { return !!(content && content.doc); })
+        .map(function(content) {
+          return { content: content, rect: getContentHostRect(content) };
+        })
+        .filter(function(item) {
+          return item.rect && isHostRectVisible(item.rect);
+        })
+        .sort(function(a, b) {
+          const topDelta = (a.rect ? a.rect.top : 0) - (b.rect ? b.rect.top : 0);
+          return Math.abs(topDelta) > 1
+            ? topDelta
+            : (a.rect ? a.rect.left : 0) - (b.rect ? b.rect.left : 0);
+        })
+        .map(function(item) { return item.content; });
+    }
+
+    function isRectVisibleInReader(rect, renderer, win, doc) {
+      if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+      const isPaginated = !renderer.scrolled;
+      if (isPaginated && renderer.size > 0) {
+        const visibleRange = getVisibleRangeForTTSDoc(doc, renderer);
+        return visibleRange ? rectIntersectsPaginatedRange(rect, visibleRange) : false;
+      }
+      return isHostRectVisible(mapIframeRectToHost(rect, doc));
+    }
+
+    function isRangeVisibleInReader(range, renderer, win) {
+      if (!range || !renderer || !win) return false;
+      try {
+        const rects = Array.from(range.getClientRects ? range.getClientRects() : []);
+        const doc = getRangeDocument(range);
+        if (!rects.length) {
+          return isRectVisibleInReader(range.getBoundingClientRect(), renderer, win, doc);
+        }
+        return rects.some((rect) => isRectVisibleInReader(rect, renderer, win, doc));
+      } catch (e) {
+        console.log('[visibleTTSSegments] failed to inspect range rects:', e);
+        return false;
+      }
+    }
+
+    function isRangeStartVisibleInReader(range, renderer, win) {
+      if (!range || !renderer || !win) return false;
+      try {
+        const rects = Array.from(range.getClientRects ? range.getClientRects() : []);
+        const doc = getRangeDocument(range);
+        if (!rects.length) {
+          return isRectVisibleInReader(range.getBoundingClientRect(), renderer, win, doc);
+        }
+        return isRectVisibleInReader(rects[0], renderer, win, doc);
+      } catch (e) {
+        console.log('[visibleTTSSegments] failed to inspect range start rect:', e);
+        return false;
+      }
+    }
+
+    function getVisibleBlocksForTTS(doc, renderer) {
+      const blockSelector = "p, h1, h2, h3, h4, h5, h6, li, blockquote, dd, dt, figcaption, pre, td, th";
+      const blocks = doc.querySelectorAll(blockSelector);
+      const win = doc.defaultView;
+      if (!win) return [];
+      return Array.from(blocks).filter((block) => {
+        if (!block || !block.textContent || !block.textContent.trim()) return false;
+        if (shouldSkipTTSNode(block)) return false;
+        try {
+          const range = doc.createRange();
+          range.selectNodeContents(block);
+          return isRangeVisibleInReader(range, renderer, win);
+        } catch (e) {
+          return isRectVisibleInReader(block.getBoundingClientRect(), renderer, win, doc);
+        }
+      });
+    }
+
+    function getReadableBlocksForTTS(doc) {
+      const blockSelector = "p, h1, h2, h3, h4, h5, h6, li, blockquote, dd, dt, figcaption, pre, td, th";
+      return Array.from(doc.querySelectorAll(blockSelector)).filter((block) => {
+        if (!block || !block.textContent || !block.textContent.trim()) return false;
+        if (shouldSkipTTSNode(block)) return false;
+        return true;
+      });
+    }
+
+    function resolveTextPosition(textNodes, absoluteOffset, isEnd) {
+      if (!textNodes.length) return null;
+      for (var i = 0; i < textNodes.length; i++) {
+        var item = textNodes[i];
+        if (absoluteOffset < item.end || (isEnd && absoluteOffset <= item.end)) {
+          return {
+            node: item.node,
+            offset: Math.max(0, Math.min(item.node.nodeValue.length, absoluteOffset - item.start)),
+          };
+        }
+      }
+      const last = textNodes[textNodes.length - 1];
+      return { node: last.node, offset: last.node.nodeValue.length };
+    }
+
+    function fallbackSentenceSegments(text) {
+      const normalized = normalizeTTSText(text);
+      if (!normalized) return [];
+      const matches = normalized.match(/[^。！？!?；;\n]+[。！？!?；;…]?/gu) || [];
+      return (matches.length ? matches : [normalized]).map((segment) => segment.trim()).filter(Boolean);
+    }
+
+    const TTS_FOOTNOTE_MARKER_PATTERN = /(?:\s*(?:\[(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})\]|［(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})］|【(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})】|〔(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})〕|［?（(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})）］?|\((?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})\)))+/gu;
+    const TTS_FOOTNOTE_MARKER_ONLY_PATTERN = /^(?:\s*(?:\[(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})\]|［(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})］|【(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})】|〔(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})〕|［?（(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})）］?|\((?:\d{1,4}|[一二三四五六七八九十百千万零〇两]{1,8}|[ivxlcdmIVXLCDM]{1,10})\)))+\s*$/u;
+    const TTS_SKIPPED_ELEMENT_SELECTOR = [
+      'script',
+      'style',
+      'rt',
+      'rp',
+      'sup',
+      '.readany-translation',
+      '[role="doc-noteref"]',
+      '[role="doc-footnote"]',
+      '[epub\\:type~="noteref"]',
+      '[epub\\:type~="footnote"]',
+      '[type~="noteref"]',
+      '[type~="footnote"]',
+      'a[href^="#fn"]',
+      'a[href^="#footnote"]',
+      'a[href*="footnote"]',
+      'a[href*="note"]',
+      'a.noteref',
+      'a.footnote',
+      '.noteref',
+      '.footnote',
+      '.footnote-ref',
+      '.endnote',
+      '.duokan-footnote',
+      '.calibre-footnote',
+    ].join(',');
+
+    function normalizeTTSText(text) {
+      return String(text || '').replace(TTS_FOOTNOTE_MARKER_PATTERN, '').replace(/\s+/g, ' ').trim();
+    }
+
+    function isTTSFootnoteMarker(text) {
+      return TTS_FOOTNOTE_MARKER_ONLY_PATTERN.test(String(text || ''));
+    }
+
+    function shouldSkipTTSNode(element) {
+      return !!(element && element.closest && element.closest(TTS_SKIPPED_ELEMENT_SELECTOR));
+    }
+
+    function stripCfiAssertions(value) {
+      return String(value || '').replace(/\[[^\]]*\]/g, '');
+    }
+
+    function getTTSCfiStartIdentity(cfi) {
+      const raw = String(cfi || '').trim();
+      if (!raw) return '';
+      const inner = raw.startsWith('epubcfi(') && raw.endsWith(')')
+        ? raw.slice(8, -1)
+        : raw;
+      const bangIndex = inner.indexOf('!');
+      if (bangIndex < 0) return stripCfiAssertions(inner);
+
+      const sectionPath = stripCfiAssertions(inner.slice(0, bangIndex));
+      const localPath = stripCfiAssertions(inner.slice(bangIndex + 1));
+      const commaIndex = localPath.indexOf(',');
+      if (commaIndex < 0) return `${sectionPath}!${localPath}`;
+
+      const commonPath = localPath.slice(0, commaIndex);
+      const rangePath = localPath.slice(commaIndex + 1);
+      const rangeEndIndex = rangePath.indexOf(',');
+      const startPath = rangeEndIndex >= 0 ? rangePath.slice(0, rangeEndIndex) : rangePath;
+      return `${sectionPath}!${commonPath}${startPath}`;
+    }
+
+    function getTTSSegmentIdentity(cfi, text) {
+      return `${getTTSCfiStartIdentity(cfi)}::${normalizeTTSText(text)}`;
+    }
+
+    function summarizeTTSSegmentsForLog(segments, limit) {
+      return (segments || []).slice(0, limit || 8).map(function(segment, index) {
+        var text = normalizeTTSText(segment && segment.text);
+        return {
+          index: index,
+          cfi: segment && segment.cfi || null,
+          length: text.length,
+          text: text,
+        };
+      });
+    }
+
+    function collectTTSSegmentsFromEngine(count, alignCfi, alignRange) {
+      const tts = view && view.tts;
+      if (!tts) return [];
+
+      // Prefer range-based alignment (reliable boundary comparison) over CFI string
+      // matching (fragile — depends on exact serialization equality).
+      if (alignRange && typeof tts.from === 'function') {
+        try {
+          // tts.from() uses `range.end <= detailRange.start` comparison.
+          // If we pass a full sentence range, range.end overshoots detailRange[0].start
+          // and skips the first sentence. Collapse to start (caret) so the comparison
+          // correctly lands on the sentence that CONTAINS the visible position.
+          const caretRange = alignRange.cloneRange ? alignRange.cloneRange() : alignRange;
+          if (caretRange.collapse) caretRange.collapse(true); // collapse to start
+          tts.from(caretRange);
+        } catch (e) {
+          console.log('[visibleTTSSegments] tts.from() failed, falling back to alignCfi:', e);
+          // fall through to CFI alignment below
+          if (alignCfi && typeof tts.alignCfi === 'function') {
+            try { tts.alignCfi(alignCfi); } catch {}
+          }
+        }
+      } else if (alignCfi) {
+        try {
+          if (typeof tts.alignCfi === 'function') {
+            tts.alignCfi(alignCfi);
+          } else if (typeof tts.highlightCfi === 'function') {
+            tts.highlightCfi(alignCfi);
+          }
+        } catch (e) {
+          console.log('[visibleTTSSegments] failed to align tts detail cursor:', e);
+        }
+      }
+
+      const total = Math.max(1, Number.isFinite(count) ? count : 1);
+      const current =
+        typeof tts.currentDetail === 'function'
+          ? tts.currentDetail()
+          : null;
+      const following =
+        typeof tts.collectDetails === 'function'
+          ? tts.collectDetails(Math.max(0, total - (current ? 1 : 0)), {
+              includeCurrent: false,
+              offset: 1,
+            })
+          : [];
+
+      const result = [];
+      const seen = new Set();
+      for (const detail of [current, ...(following || [])]) {
+        if (!detail || !detail.text || !detail.cfi) continue;
+        const text = normalizeTTSText(detail.text);
+        const identity = getTTSSegmentIdentity(detail.cfi, text);
+        if (!text || seen.has(identity)) continue;
+        seen.add(identity);
+        result.push({ text, cfi: detail.cfi });
+      }
+      return result;
+    }
+
+    function getTTSSegmentContextFromEngine(cfi, beforeCount, afterCount) {
+      try {
+        const tts = view && view.tts;
+        if (!tts || !cfi) return { before: [], after: [] };
+
+        const resolved = resolveRangeForCfi(cfi);
+        try {
+          if (resolved?.range && typeof tts.from === 'function') {
+            const caretRange = resolved.range.cloneRange ? resolved.range.cloneRange() : resolved.range;
+            if (caretRange.collapse) caretRange.collapse(true);
+            tts.from(caretRange);
+          } else if (typeof tts.alignCfi === 'function') {
+            tts.alignCfi(cfi);
+          } else if (typeof tts.highlightCfi === 'function') {
+            tts.highlightCfi(cfi);
+          }
+        } catch (e) {
+          console.log('[ttsSegmentContext] failed to align cfi:', e);
+          return { before: [], after: [] };
+        }
+
+        const current =
+          typeof tts.currentDetail === 'function'
+            ? tts.currentDetail()
+            : null;
+        const currentText =
+          current && current.text
+            ? normalizeTTSText(current.text)
+            : '';
+        const currentIdentity = currentText ? getTTSSegmentIdentity(current && current.cfi, currentText) : null;
+
+        const normalize = function(details) {
+          const result = [];
+          const seen = new Set();
+          for (const detail of details || []) {
+            if (!detail || !detail.text || !detail.cfi) continue;
+            const text = normalizeTTSText(detail.text);
+            const identity = getTTSSegmentIdentity(detail.cfi, text);
+            if (!text || (currentIdentity && identity === currentIdentity) || seen.has(identity)) continue;
+            seen.add(identity);
+            result.push({ text, cfi: detail.cfi });
+          }
+          return result;
+        };
+
+        const before =
+          typeof tts.collectDetails === 'function'
+            ? tts.collectDetails(Math.max(0, beforeCount || 0), {
+                includeCurrent: false,
+                offset: -Math.max(0, beforeCount || 0),
+              })
+            : [];
+        const after =
+          typeof tts.collectDetails === 'function'
+            ? tts.collectDetails(Math.max(0, afterCount || 0), {
+                includeCurrent: false,
+                offset: 1,
+              })
+            : [];
+
+        return {
+          before: normalize(before),
+          after: normalize(after),
+        };
+      } catch (e) {
+        console.log('[ttsSegmentContext] error:', e);
+        return { before: [], after: [] };
+      }
+    }
+
+    function extractTTSSegmentsFromDocument(doc, sectionIndex, maxCount, anchorRange) {
+      try {
+        if (!doc || !view || typeof view.getCFI !== 'function') return [];
+        const blocks = getReadableBlocksForTTS(doc);
+        const lang =
+          doc.documentElement.lang ||
+          doc.documentElement.getAttribute('xml:lang') ||
+          (doc.body && doc.body.lang) ||
+          navigator.language ||
+          'en';
+        const segmenter =
+          typeof Intl !== 'undefined' && Intl.Segmenter
+            ? new Intl.Segmenter(lang, { granularity: 'sentence' })
+            : null;
+        const limit = Math.max(1, maxCount || 24);
+        const segments = [];
+        const seen = new Set();
+        const docNode = doc.defaultView && doc.defaultView.Node ? doc.defaultView.Node : Node;
+        const anchorNode =
+          anchorRange && anchorRange.startContainer
+            ? (anchorRange.startContainer.nodeType === docNode.TEXT_NODE
+                ? anchorRange.startContainer.parentElement
+                : anchorRange.startContainer)
+            : null;
+        let started = !anchorNode;
+
+        for (const block of blocks) {
+          if (!started && anchorNode) {
+            if (block === anchorNode || block.contains(anchorNode)) {
+              started = true;
+            } else if (
+              anchorNode.compareDocumentPosition &&
+              (anchorNode.compareDocumentPosition(block) & docNode.DOCUMENT_POSITION_FOLLOWING)
+            ) {
+              started = true;
+            }
+          }
+          if (!started) continue;
+
+          const textNodes = getTTSTextNodes(block).map((node) => {
+            const text = node.nodeValue || '';
+            return { node, text };
+          }).filter((item) => item.text.trim().length > 0);
+          if (!textNodes.length) continue;
+
+          let absoluteText = '';
+          const positionedNodes = textNodes.map((item) => {
+            const start = absoluteText.length;
+            absoluteText += item.text;
+            return {
+              node: item.node,
+              start,
+              end: absoluteText.length,
+            };
+          });
+
+          const rawSegments = segmenter
+            ? Array.from(segmenter.segment(absoluteText)).map((item) => ({
+                start: item.index,
+                end: item.index + item.segment.length,
+              }))
+            : fallbackSentenceSegments(absoluteText).reduce((acc, sentence) => {
+                const start = absoluteText.indexOf(sentence, acc.lastIndex || 0);
+                if (start >= 0) {
+                  acc.items.push({ start, end: start + sentence.length });
+                  acc.lastIndex = start + sentence.length;
+                }
+                return acc;
+              }, { items: [], lastIndex: 0 }).items;
+          const normalizedSegments = rawSegments.length
+            ? rawSegments
+            : [{ start: 0, end: absoluteText.length }];
+
+          for (const rawSegment of normalizedSegments) {
+            let start = rawSegment.start;
+            let end = rawSegment.end;
+            while (start < end && /\s/u.test(absoluteText[start])) start++;
+            while (end > start && /\s/u.test(absoluteText[end - 1])) end--;
+            if (end - start < 2) continue;
+
+            const startPos = resolveTextPosition(positionedNodes, start, false);
+            const endPos = resolveTextPosition(positionedNodes, end, true);
+            if (!startPos || !endPos) continue;
+
+            const range = doc.createRange();
+            range.setStart(startPos.node, startPos.offset);
+            range.setEnd(endPos.node, endPos.offset);
+
+            const text = normalizeTTSText(absoluteText.slice(start, end));
+            if (!text) continue;
+
+            try {
+              const cfi = view.getCFI(sectionIndex, range);
+              const identity = getTTSSegmentIdentity(cfi, text);
+              if (!cfi || seen.has(identity)) continue;
+              seen.add(identity);
+              segments.push({ text, cfi });
+              if (segments.length >= limit) return segments;
+            } catch (e) {
+              console.log('[hrefTTSSegments] failed to convert range to CFI:', e);
+            }
+          }
+        }
+
+        return segments;
+      } catch (e) {
+        console.log('[hrefTTSSegments] extract error:', e);
+        return [];
+      }
+    }
+
+    async function getHrefTTSSegmentsFromBook(href, maxCount) {
+      try {
+        if (!href || !currentBook || !currentBook.sections || !view) return [];
+        let resolved = null;
+        try {
+          if (typeof view.resolveNavigation === 'function') {
+            resolved = await Promise.resolve(view.resolveNavigation(href));
+          } else if (typeof currentBook.resolveHref === 'function') {
+            resolved = await Promise.resolve(currentBook.resolveHref(href));
+          }
+        } catch (e) {
+          console.log('[hrefTTSSegments] failed to resolve href:', href, e);
+        }
+
+        let sectionIndex = Number.isInteger(resolved && resolved.index) ? resolved.index : -1;
+        if (sectionIndex < 0) {
+          const hrefWithoutHash = String(href).split('#')[0];
+          sectionIndex = Array.from(currentBook.sections).findIndex(function(section) {
+            const sectionHref = String(section && section.href || '').split('#')[0];
+            return sectionHref === href || sectionHref === hrefWithoutHash || sectionHref.endsWith('/' + hrefWithoutHash);
+          });
+        }
+        if (sectionIndex < 0 || sectionIndex >= currentBook.sections.length) return [];
+        const section = currentBook.sections[sectionIndex];
+        if (!section || typeof section.createDocument !== 'function') return [];
+
+        const doc = await section.createDocument();
+        let anchorRange = null;
+        if (resolved && typeof resolved.anchor === 'function') {
+          try {
+            anchorRange = anchorToRange(doc, resolved.anchor(doc));
+          } catch (e) {
+            anchorRange = null;
+          }
+        }
+
+        return extractTTSSegmentsFromDocument(doc, sectionIndex, maxCount, anchorRange);
+      } catch (e) {
+        console.log('[hrefTTSSegments] error:', e);
+        return [];
+      }
+    }
+
+    async function getSectionTTSSegmentsFromBook(sectionIndex, maxCount) {
+      try {
+        if (!currentBook || !currentBook.sections || !view) return [];
+        const index = Number(sectionIndex);
+        if (!Number.isInteger(index) || index < 0 || index >= currentBook.sections.length) {
+          return [];
+        }
+
+        const section = currentBook.sections[index];
+        if (!section || typeof section.createDocument !== 'function') return [];
+
+        const doc = await section.createDocument();
+        return extractTTSSegmentsFromDocument(doc, index, maxCount, null);
+      } catch (e) {
+        console.log('[sectionTTSSegments] error:', e);
+        return [];
+      }
+    }
+
+    function extractVisibleTTSSegments(alignCfi) {
+      try {
+        const renderer = view && view.renderer;
+        const contents = getRendererContents();
+        if (!renderer || !contents.length) return [];
+        ttsVisibleRangeByDoc = new WeakMap();
+        const scanContents = getVisibleContentsForTTS(contents, renderer);
+        const segments = [];
+        const stats = {
+          contentsCount: contents.length,
+          scannedContentsCount: scanContents.length,
+          visibleBlockCount: 0,
+          rawSentenceCount: 0,
+          skippedTooShort: 0,
+          skippedNoBoundary: 0,
+          skippedNotStartVisible: 0,
+          skippedNotVisible: 0,
+          skippedEmptyText: 0,
+          skippedCFI: 0,
+          skippedDuplicate: 0,
+          startVisibilityMode: 'range-intersection',
+        };
+        const seenVisibleIdentities = new Set();
+        // Track the first visible range for range-based TTS cursor alignment
+        // Must be declared here (outer scope) so it's accessible after both loops close.
+        let firstVisibleRange = null;
+
+        for (var contentIndex = 0; contentIndex < scanContents.length; contentIndex++) {
+          const current = scanContents[contentIndex];
+          if (!current || !current.doc) continue;
+          const doc = current.doc;
+          const win = doc.defaultView;
+          if (!win) continue;
+          const sectionIndex = typeof current.index === 'number' ? current.index : currentSectionIndex;
+          const visibleBlocks = getVisibleBlocksForTTS(doc, renderer);
+          stats.visibleBlockCount += visibleBlocks.length;
+          const lang =
+            doc.documentElement.lang ||
+            doc.documentElement.getAttribute('xml:lang') ||
+            doc.body.lang ||
+            navigator.language ||
+            'en';
+          const segmenter =
+            typeof Intl !== 'undefined' && Intl.Segmenter
+              ? new Intl.Segmenter(lang, { granularity: 'sentence' })
+              : null;
+
+          for (var blockIndex = 0; blockIndex < visibleBlocks.length; blockIndex++) {
+            const block = visibleBlocks[blockIndex];
+            const textNodes = getTTSTextNodes(block).map((node) => {
+              const text = node.nodeValue || '';
+              return { node, text };
+            }).filter((item) => item.text.trim().length > 0);
+            if (!textNodes.length) continue;
+
+            var absoluteText = '';
+            const positionedNodes = textNodes.map((item) => {
+              const start = absoluteText.length;
+              absoluteText += item.text;
+              return {
+                node: item.node,
+                start,
+                end: absoluteText.length,
+              };
+            });
+
+            const rawSegments = segmenter
+              ? Array.from(segmenter.segment(absoluteText)).map((item) => ({
+                  start: item.index,
+                  end: item.index + item.segment.length,
+                }))
+              : fallbackSentenceSegments(absoluteText).reduce((acc, sentence) => {
+                  const start = absoluteText.indexOf(sentence, acc.lastIndex || 0);
+                  if (start >= 0) {
+                    acc.items.push({ start, end: start + sentence.length });
+                    acc.lastIndex = start + sentence.length;
+                  }
+                  return acc;
+                }, { items: [], lastIndex: 0 }).items;
+
+            const normalizedSegments = rawSegments.length
+              ? rawSegments
+              : [{ start: 0, end: absoluteText.length }];
+            stats.rawSentenceCount += normalizedSegments.length;
+
+            for (var si = 0; si < normalizedSegments.length; si++) {
+              let start = normalizedSegments[si].start;
+              let end = normalizedSegments[si].end;
+
+              while (start < end && /\s/u.test(absoluteText[start])) start++;
+              while (end > start && /\s/u.test(absoluteText[end - 1])) end--;
+              if (end - start < 2) {
+                stats.skippedTooShort++;
+                continue;
+              }
+
+              const startPos = resolveTextPosition(positionedNodes, start, false);
+              const endPos = resolveTextPosition(positionedNodes, end, true);
+              if (!startPos || !endPos) {
+                stats.skippedNoBoundary++;
+                continue;
+              }
+
+              const range = doc.createRange();
+              range.setStart(startPos.node, startPos.offset);
+              range.setEnd(endPos.node, endPos.offset);
+              if (!isRangeStartVisibleInReader(range, renderer, win)) {
+                stats.skippedNotVisible++;
+                stats.skippedNotStartVisible++;
+                continue;
+              }
+
+              const text = normalizeTTSText(absoluteText.slice(start, end));
+              if (!text) {
+                stats.skippedEmptyText++;
+                continue;
+              }
+
+              // Capture the first visible range for reliable TTS cursor alignment
+              if (!firstVisibleRange) {
+                firstVisibleRange = range;
+              }
+
+              try {
+                const cfi = view && view.getCFI ? view.getCFI(sectionIndex, range) : '';
+                if (cfi) {
+                  const identity = getTTSSegmentIdentity(cfi, text);
+                  if (seenVisibleIdentities.has(identity)) {
+                    stats.skippedDuplicate++;
+                    continue;
+                  }
+                  seenVisibleIdentities.add(identity);
+                  segments.push({ text, cfi });
+                } else {
+                  stats.skippedCFI++;
+                }
+              } catch (e) {
+                stats.skippedCFI++;
+                console.log('[visibleTTSSegments] failed to convert range to CFI:', e);
+              }
+            }
+          }
+        }
+
+        // Use range-based alignment (preferred: uses boundary comparison, not CFI string equality)
+        // Fall back to CFI string alignment for older tts.js builds without tts.from()
+        const firstVisibleCfi = segments[0]?.cfi || null;
+        const resolvedAlignRange = resolveRangeForCfi(alignCfi);
+        const alignedSegments = segments.length
+          ? collectTTSSegmentsFromEngine(
+              alignCfi ? 500 : segments.length,
+              alignCfi || firstVisibleCfi,
+              resolvedAlignRange?.range || firstVisibleRange
+            )
+          : [];
+        let returnSource = segments.length ? 'direct-visible' : 'no-visible-segments';
+        let filteredAlignedCount = 0;
+        let filteredAlignedPreview = [];
+        let returnedSegments = segments;
+        if (alignedSegments.length && segments.length) {
+          const visibleIdentities = new Set(
+            segments.map((segment) => getTTSSegmentIdentity(segment.cfi, segment.text))
+          );
+          const filtered = alignedSegments.filter((segment) =>
+            visibleIdentities.has(getTTSSegmentIdentity(segment.cfi, segment.text))
+          );
+          filteredAlignedCount = filtered.length;
+          filteredAlignedPreview = summarizeTTSSegmentsForLog(filtered, 8);
+          if (filtered.length === segments.length) {
+            returnSource = 'aligned-filtered';
+            returnedSegments = filtered;
+          } else if (filtered.length > 0) {
+            returnSource = 'direct-partial-filtered-fallback';
+            returnedSegments = segments;
+          } else if (alignCfi) {
+            const alignedStart = alignedSegments[0] || null;
+            const alignedStartIdentity = alignedStart
+              ? getTTSSegmentIdentity(alignedStart.cfi, alignedStart.text)
+              : null;
+            const visibleStartIndex = alignedStartIdentity
+              ? segments.findIndex(
+                  (segment) =>
+                    getTTSSegmentIdentity(segment.cfi, segment.text) === alignedStartIdentity
+                )
+              : -1;
+            if (visibleStartIndex >= 0) {
+              returnSource = 'direct-aligned-slice';
+              returnedSegments = segments.slice(visibleStartIndex);
+            } else {
+              returnSource = 'direct-fallback';
+              returnedSegments = segments;
+            }
+          } else {
+            returnSource = 'direct-visible';
+            returnedSegments = segments;
+          }
+        }
+
+        window.__lastVisibleTTSDiagnostics = {
+          alignCfi: alignCfi || null,
+          firstVisibleCfi: firstVisibleCfi,
+          firstVisibleText: segments[0] && segments[0].text || null,
+          directCount: segments.length,
+          alignedCount: alignedSegments.length,
+          filteredAlignedCount: filteredAlignedCount,
+          returnedCount: returnedSegments.length,
+          returnSource: returnSource,
+          stats: stats,
+          directPreview: summarizeTTSSegmentsForLog(segments, 8),
+          alignedPreview: summarizeTTSSegmentsForLog(alignedSegments, 8),
+          filteredAlignedPreview: filteredAlignedPreview,
+          returnedPreview: summarizeTTSSegmentsForLog(returnedSegments, 8),
+        };
+        console.log('[visibleTTSSegments] diagnostics', JSON.stringify(window.__lastVisibleTTSDiagnostics));
+        return returnedSegments;
+      } catch (e) {
+        console.log('[visibleTTSSegments] extraction error:', e);
+        const fallbackSegments = alignCfi
+          ? collectTTSSegmentsFromEngine(500, alignCfi, resolveRangeForCfi(alignCfi)?.range || null)
+          : [];
+        window.__lastVisibleTTSDiagnostics = {
+          alignCfi: alignCfi || null,
+          extractionError: String(e),
+          returnSource: alignCfi ? 'engine-align-fallback' : 'no-visible-segments',
+          directCount: 0,
+          alignedCount: fallbackSegments.length,
+          filteredAlignedCount: 0,
+          returnedCount: fallbackSegments.length,
+          stats: {
+            startVisibilityMode: 'range-intersection',
+          },
+          directPreview: [],
+          alignedPreview: summarizeTTSSegmentsForLog(fallbackSegments, 8),
+          filteredAlignedPreview: [],
+          returnedPreview: summarizeTTSSegmentsForLog(fallbackSegments, 8),
+        };
+        console.log('[visibleTTSSegments] diagnostics', JSON.stringify(window.__lastVisibleTTSDiagnostics));
+        return fallbackSegments;
+      }
+    }
+
+    // ─── Expose global functions for injectJavaScript ───
+    window.goNext = function (distance) { goNextByMode(distance, 'api:goNext'); };
+    window.goPrev = function (distance) { goPrevByMode(distance, 'api:goPrev'); };
+    window.goLeft = function () { if (view) view.goLeft(); };
+    window.goRight = function () { if (view) view.goRight(); };
+    window.goToHref = function (href) { if (view) view.goTo(href); };
+    window.goToSection = async function (sectionIndex) {
+      if (!view) return;
+      const index = Number(sectionIndex);
+      if (!Number.isInteger(index)) return;
+      try {
+        const resolved = typeof view.resolveNavigation === 'function'
+          ? await Promise.resolve(view.resolveNavigation(index))
+          : { index };
+        return view.goTo(resolved);
+      } catch (e) {
+        try { return view.goTo({ index }); } catch (_) {}
+      }
+    };
+    window.goToCFI = function (cfi) { if (view) view.goTo(cfi); };
+    window.goToProgress = function (p) { if (view) view.goToFraction(p); };
+    window.search = function (q) { handleSearch(q); };
+    window.navigateSearch = function (idx) { navigateToSearchResult(idx); };
+    window.clearSearch = function () { if (view) view.clearSearch(); searchResults = []; };
+    window.setFontSize = function (s) { applySettings({ fontSize: s }); };
+    window.setLineHeight = function (lh) { applySettings({ lineHeight: lh }); };
+    window.setParagraphSpacing = function (s) { applySettings({ paragraphSpacing: s }); };
+    window.setPageMargin = function (m) { applySettings({ pageMargin: m }); };
+    window.setFontTheme = function (t) { applySettings({ fontTheme: t }); };
+    window.setViewMode = function (m) { applySettings({ viewMode: m }); };
+    window.setPaginatedLayout = function (m) { applySettings({ paginatedLayout: m }); };
+    window.addAnnotation = function (a) { if (view) view.addAnnotation(a); };
+    window.removeAnnotation = function (a) { if (view) view.deleteAnnotation(a); };
+    window.setTTSHighlight = function (cfi, color) { return setTTSHighlight(cfi, color); };
+    window.clearTTSHighlight = function () { return clearTTSHighlight(); };
+    
+    // Flash highlight for AI citation - temporarily hide existing annotation, show flash, then restore
+    window.flashHighlight = async function(cfi, color, duration) {
+      if (!view) return;
+      const flashColor = color || 'orange';
+      const flashDuration = duration || 500;
+      
+      // Get existing annotation for this CFI
+      const existingAnnotation = userAnnotations.get(cfi);
+      
+      // If there's an existing annotation, temporarily remove it
+      if (existingAnnotation) {
+        try {
+          await view.deleteAnnotation(existingAnnotation);
+        } catch (e) {
+          console.log('[flashHighlight] error removing existing:', e);
+        }
+      }
+      
+      // Add flash highlight
+      try {
+        await view.addAnnotation({ value: cfi, color: flashColor });
+      } catch (e) {
+        console.log('[flashHighlight] error adding flash:', e);
+        // If flash add fails, restore existing annotation and return
+        if (existingAnnotation) {
+          try {
+            await view.addAnnotation(existingAnnotation);
+          } catch (e2) {}
+        }
+        return;
+      }
+      
+      // Remove flash highlight after duration and restore existing annotation
+      setTimeout(async () => {
+        try {
+          await view.deleteAnnotation({ value: cfi });
+        } catch (e) {
+          console.log('[flashHighlight] error removing flash:', e);
+        }
+        
+        // Restore existing annotation if there was one
+        if (existingAnnotation) {
+          try {
+            await view.addAnnotation(existingAnnotation);
+          } catch (e) {
+            console.log('[flashHighlight] error restoring existing:', e);
+          }
+        }
+      }, flashDuration);
+    };
+    
+    window.setNavigationLocked = function (locked) {
+      if (view && view.renderer && 'navigationLocked' in view.renderer) {
+        view.renderer.navigationLocked = locked;
+      }
+    };
+    window.requestPageSnippet = function () {
+      var snippet = getVisibleTextSnippet(80);
+      postToRN('bookmarkSnippet', { textSnippet: snippet || '' });
+    };
+    window.setBookmarkPullState = function (params) {
+      bookmarkPullStateMeta = {
+        ...bookmarkPullStateMeta,
+        ...(params || {}),
+      };
+      const { text } = getPullBookmarkElements();
+      if (text) text.textContent = getPullBookmarkLabel(false);
+    };
+    window.getVisibleText = function () {
+      var result = doGetVisibleText();
+      return JSON.stringify(result);
+    };
+    window.doGetVisibleTTSSegments = async function (alignCfi, requestId) {
+      // After page navigation (goNext/goPrev) the renderer takes time to load the
+      // new chapter. Poll until getRendererContents() returns at least one content
+      // with an overlayer before attempting extraction — otherwise we always get [].
+      const maxWaitMs = 3000;
+      const pollMs = 80;
+      let waited = 0;
+      while (waited < maxWaitMs) {
+        const contents = getRendererContents();
+        if (contents.length > 0 && contents.some(function(c) { return c.overlayer; })) break;
+        await new Promise(function(resolve) { setTimeout(resolve, pollMs); });
+        waited += pollMs;
+      }
+      console.log('[doGetVisibleTTSSegments] request', JSON.stringify({
+        requestId: requestId || null,
+        alignCfi: alignCfi || null,
+        waitedMs: waited,
+      }));
+      await ensureTTSEngine();
+      const segments = extractVisibleTTSSegments(alignCfi || null);
+      console.log('[doGetVisibleTTSSegments] extracted ' + segments.length + ' segments');
+      postToRN('visibleTTSSegments', {
+        requestId: requestId || null,
+        segments,
+        debug: window.__lastVisibleTTSDiagnostics || null,
+      });
+    };
+    window.doGetTTSSegmentContext = async function (cfi, before, after, requestId) {
+      await ensureTTSEngine();
+      const context = getTTSSegmentContextFromEngine(cfi, before, after);
+      postToRN('ttsSegmentContext', { requestId: requestId || null, ...context });
+    };
+    window.doGetHrefTTSSegments = async function (href, count, requestId) {
+      const segments = await getHrefTTSSegmentsFromBook(href, count);
+      postToRN('hrefTTSSegments', { requestId: requestId || null, segments });
+    };
+    window.doGetSectionTTSSegments = async function (sectionIndex, count, requestId) {
+      const segments = await getSectionTTSSegmentsFromBook(sectionIndex, count);
+      postToRN('sectionTTSSegments', { requestId: requestId || null, segments });
+    };
+    window.doGetChapterParagraphs = function () {
+      handleGetChapterParagraphs();
+    };
+    window.doInjectChapterTranslations = function (results, visibility) {
+      return handleInjectChapterTranslations(results, visibility);
+    };
+    window.doRemoveChapterTranslations = function () {
+      handleRemoveChapterTranslations();
+    };
+
+    // ─── Polyfills ───
+    Object.groupBy ??= function (iterable, fn) {
+      const obj = Object.create(null);
+      let i = 0;
+      for (const v of iterable) { const k = fn(v, i++); if (k in obj) obj[k].push(v); else obj[k] = [v]; }
+      return obj;
+    };
+    Map.groupBy ??= function (iterable, fn) {
+      const map = new Map();
+      let i = 0;
+      for (const v of iterable) { const k = fn(v, i++); const l = map.get(k); if (l) l.push(v); else map.set(k, [v]); }
+      return map;
+    };
+
+    // ─── Chapter Extraction for Vectorization ───
+    function isPDFBookMessage(msg) {
+      const mimeType = (msg.mimeType || '').split(';')[0].trim().toLowerCase();
+      return mimeType === 'application/pdf' || /\.pdf$/i.test(msg.fileName || '');
+    }
+
+    async function createBookFileFromMessage(msg) {
+      if (msg.base64) {
+        const binary = atob(msg.base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return new File([bytes], msg.fileName || 'book.epub', {
+          type: msg.mimeType || 'application/epub+zip'
+        });
+      }
+
+      if (msg.uri) {
+        const res = await fetch(msg.uri);
+        const isLocalFileStatus = res.status === 0 && /^file:\/\//i.test(msg.uri);
+        if (!res.ok && !isLocalFileStatus) throw new Error(`Failed to fetch: ${res.status}`);
+        const blob = await res.blob();
+        return new File([blob], msg.fileName || 'book.epub', {
+          type: msg.mimeType || blob.type || 'application/octet-stream'
+        });
+      }
+
+      throw new Error('No book data provided');
+    }
+
+    async function handleExtractBookChapters(msg) {
+      try {
+        if (isPDFBookMessage(msg)) {
+          if (typeof window._extractPDFChapters !== 'function') {
+            throw new Error('PDF extraction is not available in this reader build');
+          }
+
+          postToRN('debug', {
+            message: `[PDFExtract] start ${JSON.stringify({
+              fileName: msg.fileName || '',
+              mimeType: msg.mimeType || '',
+              base64Length: msg.base64 ? msg.base64.length : 0
+            })}`
+          });
+
+          const file = await createBookFileFromMessage(msg);
+          const chapters = await window._extractPDFChapters(file, {
+            onProgress: (detail) => {
+              postToRN('debug', { message: `[PDFExtract] page ${JSON.stringify(detail)}` });
+            }
+          });
+
+          postToRN('debug', {
+            message: `[PDFExtract] done ${JSON.stringify({
+              chapters: chapters.length,
+              segments: chapters.reduce((sum, chapter) => sum + (chapter.segments?.length || 0), 0),
+              contentLength: chapters.reduce((sum, chapter) => sum + (chapter.content?.length || 0), 0)
+            })}`
+          });
+
+          postToRN('chaptersExtracted', { chapters });
+          return;
+        }
+
+        currentBook = await makeBook(await createBookFileFromMessage(msg));
+        await handleExtractChapters();
+      } catch (err) {
+        console.error('[WebView] Error extracting book chapters:', err);
+        postToRN('chaptersExtracted', { error: String(err) });
+      }
+    }
+
+    async function handleExtractChapters() {
+      if (!currentBook) {
+        postToRN('chaptersExtracted', { error: 'No book loaded' });
+        return;
+      }
+
+      try {
+        const sections = currentBook.sections || [];
+        const toc = currentBook.toc || [];
+
+        // Build map of href to title mapping
+        const tocMap = new Map();
+        function walkToc(items) {
+          for (const item of items) {
+            if (item.label) {
+              tocMap.set(item.index, item.label);
+              if (item.href) {
+                const base = item.href.split("#")[0];
+                tocMap.set(base, item.label);
+                tocMap.set(item.href, item.label);
+              }
+            }
+            if (item.subitems && item.subitems.length) {
+              walkToc(item.subitems);
+            }
+          }
+        }
+        walkToc(toc);
+
+        const chapters = [];
+        let skippedNoCreateDocument = 0;
+
+        for (let i = 0; i < sections.length; i++) {
+          const section = sections[i];
+          if (!section.createDocument) {
+            skippedNoCreateDocument += 1;
+            continue;
+          }
+
+          try {
+            const doc = await section.createDocument();
+            if (!doc.body) continue;
+
+            const title = tocMap.get(i) || tocMap.get(section.href || "") || `Section ${i + 1}`;
+            const CFI = window.CFI || (window.EpubCFI && window.EpubCFI.fake ? window.EpubCFI : null);
+            let baseCfi = section.cfi;
+
+            // If CFI generation is available but no base cfi, try to fake it
+            if (!baseCfi && typeof CFI?.fake?.fromIndex === 'function') {
+              baseCfi = CFI.fake.fromIndex(i);
+            } else if (!baseCfi) {
+              baseCfi = `epubcfi(/6/${(i + 1) * 2}!)`; // Fallback approximate
+            }
+
+            const segments = extractSegmentsWithCfi(doc, baseCfi, CFI);
+            if (segments.length === 0) continue;
+
+            const content = segments.map(s => s.text).join("\\n\\n");
+            chapters.push({ index: i, title, content, segments });
+
+            // Reclaim memory
+            doc.documentElement.innerHTML = "";
+          } catch (err) {
+            console.warn(`[WebView] Failed to extract section ${i}:`, err);
+          }
+        }
+
+        console.log('[WebView] Chapter extraction summary:', {
+          sections: sections.length,
+          chapters: chapters.length,
+          segments: chapters.reduce((sum, chapter) => sum + (chapter.segments?.length || 0), 0),
+          skippedNoCreateDocument
+        });
+
+        postToRN('chaptersExtracted', { chapters });
+      } catch (err) {
+        console.error('[WebView] Error extracting chapters:', err);
+        postToRN('chaptersExtracted', { error: String(err) });
+      }
+    }
+
+    function extractSegmentsWithCfi(doc, baseCfi, CFI) {
+      const segments = [];
+      const body = doc.body;
+      if (!body) return segments;
+
+      const blockSelector = "p, h1, h2, h3, h4, h5, h6, li, blockquote, dd, dt, figcaption, pre, td, th";
+      const blocks = body.querySelectorAll(blockSelector);
+
+      if (blocks.length === 0) {
+        const text = body.textContent?.trim();
+        if (text) {
+          segments.push({ text, cfi: baseCfi });
+        }
+        return segments;
+      }
+
+      for (let i = 0; i < blocks.length; i++) {
+        const block = blocks[i];
+        const text = extractBlockText(block);
+        if (!text || text.length < 2) continue;
+
+        try {
+          if (!CFI) {
+            segments.push({ text, cfi: baseCfi });
+            continue;
+          }
+
+          const textNodes = getTextNodes(block);
+          if (textNodes.length === 0) {
+            segments.push({ text, cfi: baseCfi });
+            continue;
+          }
+
+          const range = doc.createRange();
+          const firstNode = textNodes[0];
+          const lastNode = textNodes[textNodes.length - 1];
+
+          range.setStart(firstNode, 0);
+          range.setEnd(lastNode, lastNode.length);
+
+          let rangeCfi = '';
+          if (typeof CFI.fromRange === 'function') {
+            rangeCfi = CFI.fromRange(range);
+          } else if (CFI.Generator && typeof CFI.Generator.generateRangeComponent === 'function') {
+            rangeCfi = CFI.Generator.generateRangeComponent(
+              range.startContainer, range.startOffset,
+              range.endContainer, range.endOffset
+            );
+          }
+
+          let fullCfi = baseCfi;
+          if (rangeCfi) {
+            if (typeof CFI.joinIndir === 'function') {
+              fullCfi = CFI.joinIndir(baseCfi, rangeCfi);
+            } else {
+              // naive join epubcfi(/a!) and epubcfi(/b) -> epubcfi(/a!/b)
+              fullCfi = baseCfi.replace('!)', '!' + rangeCfi.replace('epubcfi(', ''));
+            }
+          }
+
+          segments.push({ text, cfi: fullCfi });
+        } catch (e) {
+          segments.push({ text, cfi: baseCfi });
+        }
+      }
+      return segments;
+    }
+
+    // ─── Chapter Translation Handlers ───
+
+    function handleGetChapterParagraphs() {
+      try {
+        // First try: view.renderer.getContents()
+        var doc = null;
+        var renderer = view && view.renderer;
+        if (renderer && renderer.getContents) {
+          var contents = renderer.getContents();
+          if (contents && contents.length && contents[0] && contents[0].doc) {
+            doc = contents[0].doc;
+          }
+        }
+
+        // Fallback: scan iframes
+        if (!doc) {
+          var iframes = document.querySelectorAll('iframe');
+          for (var fi = 0; fi < iframes.length; fi++) {
+            try {
+              var iframeDoc = iframes[fi].contentDocument || (iframes[fi].contentWindow && iframes[fi].contentWindow.document);
+              if (iframeDoc && iframeDoc.body && iframeDoc.body.innerText && iframeDoc.body.innerText.trim().length > 0) {
+                doc = iframeDoc;
+                break;
+              }
+            } catch (e) { /* cross-origin, skip */ }
+          }
+        }
+
+        if (!doc) {
+          postToRN('chapterParagraphs', { paragraphs: [], error: 'no document found (view=' + !!view + ', renderer=' + !!renderer + ', iframes=' + document.querySelectorAll('iframe').length + ')' });
+          return;
+        }
+
+        var blockSelector = "p, h1, h2, h3, h4, h5, h6, li, blockquote, dd, dt, figcaption, pre, td, th";
+        var blocks = doc.querySelectorAll(blockSelector);
+        var paragraphs = [];
+        for (var i = 0; i < blocks.length; i++) {
+          var el = blocks[i];
+          var text = (el.innerText || el.textContent || '').trim();
+          if (text.length < 2) continue;
+          var id = 'para_' + i;
+          el.setAttribute('data-translate-id', id);
+          paragraphs.push({ id: id, text: text, tagName: el.tagName.toLowerCase() });
+        }
+
+        postToRN('chapterParagraphs', { paragraphs: paragraphs });
+      } catch (err) {
+        postToRN('chapterParagraphs', { paragraphs: [], error: String(err) });
+      }
+    }
+
+    function getReaderLayoutSignature(doc) {
+      var root = doc && doc.documentElement;
+      var body = doc && doc.body;
+      var renderer = view && view.renderer;
+      return [
+        root ? root.scrollWidth : 0,
+        root ? root.scrollHeight : 0,
+        body ? body.scrollWidth : 0,
+        body ? body.scrollHeight : 0,
+        renderer && typeof renderer.page !== 'undefined' ? renderer.page : '',
+        renderer && typeof renderer.pages !== 'undefined' ? renderer.pages : ''
+      ].join(':');
+    }
+
+    function waitForReaderLayoutStable(doc) {
+      return new Promise(function(resolve) {
+        var win = (doc && doc.defaultView) || window;
+        var requestFrame = win.requestAnimationFrame
+          ? win.requestAnimationFrame.bind(win)
+          : function(callback) { return setTimeout(function() { callback(Date.now()); }, 16); };
+        var previous = getReaderLayoutSignature(doc);
+        var stableFrames = 0;
+        var frames = 0;
+
+        function tick() {
+          frames += 1;
+          var next = getReaderLayoutSignature(doc);
+          if (next === previous) {
+            stableFrames += 1;
+          } else {
+            stableFrames = 0;
+            previous = next;
+          }
+
+          if (stableFrames >= 2 || frames >= 12) {
+            resolve();
+            return;
+          }
+
+          requestFrame(tick);
+        }
+
+        requestFrame(tick);
+      });
+    }
+
+    async function handleInjectChapterTranslations(results, visibility) {
+      try {
+        visibility = visibility || { originalVisible: true, translationVisible: true };
+        var doc = null;
+        var renderer = view && view.renderer;
+        if (renderer && renderer.getContents) {
+          var contents = renderer.getContents();
+          if (contents && contents.length && contents[0] && contents[0].doc) {
+            doc = contents[0].doc;
+          }
+        }
+        if (!doc) {
+          var iframes = document.querySelectorAll('iframe');
+          for (var fi = 0; fi < iframes.length; fi++) {
+            try {
+              var iframeDoc = iframes[fi].contentDocument || (iframes[fi].contentWindow && iframes[fi].contentWindow.document);
+              if (iframeDoc && iframeDoc.body) { doc = iframeDoc; break; }
+            } catch (e) {}
+          }
+        }
+        if (!doc) return;
+
+        // Inject CSS once
+        if (!doc.getElementById('readany-chapter-translation-style')) {
+          var style = doc.createElement('style');
+          style.id = 'readany-chapter-translation-style';
+          style.textContent = [
+            '.readany-translation {',
+            '  color: #6b7280;',
+            '  font-size: 0.9em;',
+            '  line-height: 1.5;',
+            '  margin-top: 4px;',
+            '  margin-bottom: 8px;',
+            '  padding-left: 8px;',
+            '  border-left: 2px solid #d1d5db;',
+            '  opacity: 0.85;',
+            '}',
+            '.readany-translation[data-hidden="true"] { display: none; }',
+            '.readany-translation[data-solo="true"] { color: inherit; font-size: inherit; line-height: inherit; margin-top: 0; margin-bottom: 0.8em; padding-left: 0; border-left: none; opacity: 1; }',
+            '[data-translate-id][data-original-hidden="true"] { display: none; }',
+            '@media (prefers-color-scheme: dark) {',
+            '  .readany-translation { color: #9ca3af; border-left-color: #4b5563; }',
+            '}'
+          ].join('\n');
+          doc.head.appendChild(style);
+        }
+
+        for (var i = 0; i < results.length; i++) {
+          var r = results[i];
+          if (!r.translatedText) continue;
+          var el = doc.querySelector('[data-translate-id="' + r.paragraphId + '"]');
+          if (!el) continue;
+          el.setAttribute('data-original-hidden', String(!visibility.originalVisible));
+          // Skip if already injected
+          if (el.nextElementSibling && el.nextElementSibling.classList.contains('readany-translation')) {
+            el.nextElementSibling.setAttribute('data-hidden', String(!visibility.translationVisible));
+            el.nextElementSibling.setAttribute('data-solo', String(!visibility.originalVisible && visibility.translationVisible));
+            continue;
+          }
+
+          var div = doc.createElement('div');
+          div.className = 'readany-translation';
+          div.setAttribute('data-para-id', r.paragraphId);
+          div.setAttribute('data-hidden', String(!visibility.translationVisible));
+          div.setAttribute('data-solo', String(!visibility.originalVisible && visibility.translationVisible));
+          div.textContent = r.translatedText;
+          el.parentNode.insertBefore(div, el.nextSibling);
+        }
+        await waitForReaderLayoutStable(doc);
+      } catch (err) {
+        console.error('[WebView] Error injecting translations:', err);
+      }
+    }
+
+    function handleRemoveChapterTranslations() {
+      try {
+        var doc = null;
+        var renderer = view && view.renderer;
+        if (renderer && renderer.getContents) {
+          var contents = renderer.getContents();
+          if (contents && contents.length && contents[0] && contents[0].doc) {
+            doc = contents[0].doc;
+          }
+        }
+        if (!doc) {
+          var iframes = document.querySelectorAll('iframe');
+          for (var fi = 0; fi < iframes.length; fi++) {
+            try {
+              var iframeDoc = iframes[fi].contentDocument || (iframes[fi].contentWindow && iframes[fi].contentWindow.document);
+              if (iframeDoc && iframeDoc.body) { doc = iframeDoc; break; }
+            } catch (e) {}
+          }
+        }
+        if (!doc) return;
+
+        var elements = doc.querySelectorAll('.readany-translation');
+        for (var i = 0; i < elements.length; i++) {
+          elements[i].remove();
+        }
+        var style = doc.getElementById('readany-chapter-translation-style');
+        if (style) style.remove();
+      } catch (err) {
+        console.error('[WebView] Error removing translations:', err);
+      }
+    }
+
+    function isInsideRubyAnnotation(node) {
+      var p = node.parentNode;
+      while (p && p.nodeType === 1) {
+        var name = p.tagName && p.tagName.toLowerCase();
+        if (name === 'rt' || name === 'rp') return true;
+        p = p.parentNode;
+      }
+      return false;
+    }
+
+    function getTextNodes(element) {
+      const walker = element.ownerDocument.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: function (node) {
+            if (isInsideRubyAnnotation(node)) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          },
+        }
+      );
+      const nodes = [];
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.textContent && node.textContent.trim()) {
+          nodes.push(node);
+        }
+      }
+      return nodes;
+    }
+
+    function getTTSTextNodes(element) {
+      const walker = element.ownerDocument.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: function (node) {
+            if (isInsideRubyAnnotation(node)) return NodeFilter.FILTER_REJECT;
+            if (isTTSFootnoteMarker(node.nodeValue || '')) return NodeFilter.FILTER_REJECT;
+            if (shouldSkipTTSNode(node.parentElement)) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          },
+        }
+      );
+      const nodes = [];
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.textContent && node.textContent.trim()) {
+          nodes.push(node);
+        }
+      }
+      return nodes;
+    }
+
+    function extractBlockText(block) {
+      const walker = block.ownerDocument.createTreeWalker(
+        block,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: function (node) {
+            if (isInsideRubyAnnotation(node)) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          },
+        }
+      );
+      const texts = [];
+      let node;
+      while ((node = walker.nextNode())) {
+        const text = node.textContent?.trim();
+        if (text) texts.push(text);
+      }
+      return texts.join(" ");
+    }
+
+    // ─── Ruby Annotation (Pinyin/Zhuyin) ───
+    var _rubyWordDict = null; // { "word": ["pinyin", freq] }
+    var _rubyCharDict = null; // { "char": "pinyin" }
+    var _rubyMode = null;     // "zh-pinyin" | "zh-zhuyin" | null
+
+    var CJK_RE = /[一-鿿㐀-䶿豈-﫿]/;
+    var RUBY_STYLE_ID = 'readany-ruby-style';
+    var RUBY_PROCESSED_ATTR = 'data-ruby-processed';
+
+    function rubyAnnotateChinese(text) {
+      if ((!_rubyWordDict && !_rubyCharDict) || !text) return [{ char: text, reading: '', needsRuby: false }];
+      var tokens = [];
+      var i = 0;
+      while (i < text.length) {
+        var ch = text[i];
+        if (!CJK_RE.test(ch)) {
+          var j = i + 1;
+          while (j < text.length && !CJK_RE.test(text[j])) j++;
+          tokens.push({ char: text.slice(i, j), reading: '', needsRuby: false });
+          i = j;
+          continue;
+        }
+        var matched = false;
+        if (_rubyWordDict) {
+          for (var len = Math.min(4, text.length - i); len >= 2; len--) {
+            var word = text.slice(i, i + len);
+            var entry = _rubyWordDict[word];
+            if (entry) {
+              var reading = entry[0];
+              var readings = reading.split(' ');
+              if (readings.length === word.length) {
+                for (var k = 0; k < word.length; k++) {
+                  tokens.push({ char: word[k], reading: readings[k], needsRuby: true });
+                }
+              } else {
+                tokens.push({ char: word, reading: reading, needsRuby: true });
+              }
+              i += len;
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (matched) continue;
+        var singleReading = '';
+        if (_rubyWordDict && _rubyWordDict[ch]) {
+          singleReading = _rubyWordDict[ch][0];
+        } else if (_rubyCharDict && _rubyCharDict[ch]) {
+          singleReading = _rubyCharDict[ch];
+        }
+        tokens.push({ char: ch, reading: singleReading, needsRuby: true });
+        i++;
+      }
+      return tokens;
+    }
+
+    function rubyInjectStyles(doc) {
+      if (doc.getElementById(RUBY_STYLE_ID)) return;
+      var style = doc.createElement('style');
+      style.id = RUBY_STYLE_ID;
+      style.textContent = [
+        '.readany-ruby rt { font-size: 0.5em; line-height: 1; color: var(--readany-ruby-color, #888); font-weight: normal; user-select: none; -webkit-user-select: none; }',
+        '.readany-ruby { ruby-align: center; }',
+        '.readany-ruby-container { ruby-position: over; -webkit-ruby-position: before; }'
+      ].join('\n');
+      if (doc.head) doc.head.appendChild(style);
+    }
+
+    function rubyShouldSkip(el) {
+      if (el.closest && el.closest('.readany-translation')) return true;
+      if (el.closest && el.closest('ruby')) return true;
+      if (el.closest && el.closest('rt')) return true;
+      if (el.closest && el.closest('[' + RUBY_PROCESSED_ATTR + ']')) return true;
+      var tag = el.tagName && el.tagName.toLowerCase();
+      if (tag === 'script' || tag === 'style') return true;
+      return false;
+    }
+
+    function rubyExtractOriginalText(el) {
+      var result = '';
+      for (var ci = 0; ci < el.childNodes.length; ci++) {
+        var child = el.childNodes[ci];
+        if (child.nodeType === 3) { result += child.nodeValue || ''; }
+        else if (child.nodeType === 1) {
+          var tag = child.tagName && child.tagName.toLowerCase();
+          if (tag === 'rt' || tag === 'rp') continue;
+          result += rubyExtractOriginalText(child);
+        }
+      }
+      return result;
+    }
+
+    function doInjectRubyAnnotations(doc, mode) {
+      if (!mode || !doc) return 0;
+      if (!_rubyWordDict && !_rubyCharDict) return 0;
+      rubyInjectStyles(doc);
+      var blocks = doc.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, dd, dt, figcaption, div');
+      var count = 0;
+      for (var bi = 0; bi < blocks.length; bi++) {
+        var block = blocks[bi];
+        if (!block.textContent || !block.textContent.trim()) continue;
+        if (rubyShouldSkip(block)) continue;
+        if (block.querySelector && block.querySelector('[' + RUBY_PROCESSED_ATTR + ']')) continue;
+        if (!CJK_RE.test(block.textContent)) continue;
+
+        var walker = doc.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+          acceptNode: function(node) {
+            if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_SKIP;
+            if (!CJK_RE.test(node.nodeValue)) return NodeFilter.FILTER_SKIP;
+            var parent = node.parentElement;
+            if (!parent) return NodeFilter.FILTER_ACCEPT;
+            if (rubyShouldSkip(parent)) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+        var textNodes = [];
+        var tn = walker.nextNode();
+        while (tn) { textNodes.push(tn); tn = walker.nextNode(); }
+
+        for (var ti = 0; ti < textNodes.length; ti++) {
+          var node = textNodes[ti];
+          var text = node.nodeValue || '';
+          if (!text.trim() || !CJK_RE.test(text)) continue;
+          var tokens = rubyAnnotateChinese(text);
+          var span = doc.createElement('span');
+          span.setAttribute(RUBY_PROCESSED_ATTR, 'true');
+          span.className = 'readany-ruby-container';
+          for (var tki = 0; tki < tokens.length; tki++) {
+            var token = tokens[tki];
+            if (token.needsRuby && token.reading) {
+              var ruby = doc.createElement('ruby');
+              ruby.className = 'readany-ruby';
+              ruby.textContent = token.char;
+              var rt = doc.createElement('rt');
+              rt.textContent = token.reading;
+              ruby.appendChild(rt);
+              span.appendChild(ruby);
+            } else {
+              span.appendChild(doc.createTextNode(token.char));
+            }
+          }
+          if (node.parentNode) node.parentNode.replaceChild(span, node);
+          count++;
+        }
+      }
+      return count;
+    }
+
+    function doRemoveRubyAnnotations(doc) {
+      if (!doc) return;
+      var style = doc.getElementById(RUBY_STYLE_ID);
+      if (style) style.remove();
+      var processed = doc.querySelectorAll('[' + RUBY_PROCESSED_ATTR + ']');
+      for (var i = 0; i < processed.length; i++) {
+        var el = processed[i];
+        var originalText = rubyExtractOriginalText(el);
+        var textNode = doc.createTextNode(originalText);
+        if (el.parentNode) el.parentNode.replaceChild(textNode, el);
+      }
+    }
+
+    // Called from RN to set dict data
+    window.setRubyDicts = function(wordDictJson, charDictJson) {
+      try {
+        _rubyWordDict = wordDictJson ? (typeof wordDictJson === 'string' ? JSON.parse(wordDictJson) : wordDictJson) : null;
+        _rubyCharDict = charDictJson ? (typeof charDictJson === 'string' ? JSON.parse(charDictJson) : charDictJson) : null;
+        return true;
+      } catch(e) {
+        console.error('[Ruby] Failed to parse dicts:', e);
+        return false;
+      }
+    };
+
+    // Called from RN to inject ruby on current page
+    window.injectRuby = function(mode) {
+      _rubyMode = mode || null;
+      if (!_rubyMode) { window.removeRuby(); return; }
+      var doc = null;
+      if (view && view.renderer && view.renderer.getContents) {
+        var contents = view.renderer.getContents();
+        if (contents && contents.length && contents[0] && contents[0].doc) doc = contents[0].doc;
+      }
+      if (!doc) {
+        var iframes = document.querySelectorAll('iframe');
+        for (var fi = 0; fi < iframes.length; fi++) {
+          try {
+            var iframeDoc = iframes[fi].contentDocument || (iframes[fi].contentWindow && iframes[fi].contentWindow.document);
+            if (iframeDoc && iframeDoc.body) { doc = iframeDoc; break; }
+          } catch(e) {}
+        }
+      }
+      if (doc) doInjectRubyAnnotations(doc, _rubyMode);
+    };
+
+    // Called from RN to remove ruby
+    window.removeRuby = function() {
+      _rubyMode = null;
+      var doc = null;
+      if (view && view.renderer && view.renderer.getContents) {
+        var contents = view.renderer.getContents();
+        if (contents && contents.length && contents[0] && contents[0].doc) doc = contents[0].doc;
+      }
+      if (!doc) {
+        var iframes = document.querySelectorAll('iframe');
+        for (var fi = 0; fi < iframes.length; fi++) {
+          try {
+            var iframeDoc = iframes[fi].contentDocument || (iframes[fi].contentWindow && iframes[fi].contentWindow.document);
+            if (iframeDoc && iframeDoc.body) { doc = iframeDoc; break; }
+          } catch(e) {}
+        }
+      }
+      if (doc) doRemoveRubyAnnotations(doc);
+    };
+  </script>
+
+  <script>
+    if (typeof Promise.withResolvers !== 'function') {
+      Object.defineProperty(Promise, 'withResolvers', {
+        configurable: true,
+        writable: true,
+        value: function withResolvers() {
+          var resolveFn;
+          var rejectFn;
+          var promise = new Promise(function(resolve, reject) {
+            resolveFn = resolve;
+            rejectFn = reject;
+          });
+          return { promise: promise, resolve: resolveFn, reject: rejectFn };
+        },
+      });
+    }
+  </script>
+
+  <!-- __READANY_FOLIATE_BUNDLE_INSERT_POINT_7f3a9b2e__ -->
+
+  <script>
+    // Signal ready AFTER foliate-js is loaded
+    postToRN('ready', {});
+  </script>
+</body>
+
+</html>

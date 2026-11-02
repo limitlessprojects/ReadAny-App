@@ -1,0 +1,103 @@
+const { getAppVariantConfig } = require("./scripts/app-variant");
+
+const variant = getAppVariantConfig();
+
+module.exports = {
+  expo: {
+    name: variant.name,
+    slug: "readany",
+    version: "1.4.1",
+    orientation: "portrait",
+    icon: "./assets/icon.png",
+    userInterfaceStyle: "automatic",
+    newArchEnabled: true,
+    splash: {
+      image: "./assets/splash-icon.png",
+      resizeMode: "contain",
+      backgroundColor: "#05042B",
+    },
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: variant.bundleIdentifier,
+      buildNumber: "2",
+      infoPlist: {
+        UIBackgroundModes: ["audio"],
+        NSCameraUsageDescription:
+          "ReadAny uses the camera to scan sync and configuration QR codes.",
+        NSLocalNetworkUsageDescription:
+          "ReadAny uses the local network to connect to sync devices and the development server while debugging.",
+        ITSAppUsesNonExemptEncryption: false,
+      },
+    },
+    android: {
+      adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#05042B",
+      },
+      softwareKeyboardLayoutMode: "resize",
+      package: variant.androidPackage,
+      permissions: [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+      ],
+    },
+    // expo-dev-client (dev launcher) is only useful during development —
+    // shipping it in the release APK adds dead dex + native weight.
+    plugins: [
+      ...(variant.key === "development" ? [["expo-dev-client", { launchMode: "launcher" }]] : []),
+      // Release/preview APKs are arm64-only (~150MB smaller).
+      ...(variant.key !== "development" ? ["./plugins/withAbiFilter"] : []),
+      [
+        "expo-av",
+        {
+          microphonePermission: false,
+        },
+      ],
+      [
+        "expo-build-properties",
+        {
+          android: {
+            enableProguardInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
+            enableMinifyInReleaseBuilds: true,
+            usesCleartextTraffic: true,
+          },
+        },
+      ],
+      "./plugins/withGradleMemory",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          photosPermission: "ReadAny uses your photo library to choose custom book covers.",
+        },
+      ],
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-asset",
+      "./plugins/withOnnxruntimePackage",
+      "onnxruntime-react-native",
+      "./plugins/withVolumeKeyPaging",
+      [
+        "expo-camera",
+        {
+          cameraPermission: "Allow ReadAny to use your camera to scan sync QR codes.",
+        },
+      ],
+    ],
+    scheme: variant.scheme,
+    // Without the plugin, autolinking would still compile expo-dev-launcher's
+    // native code into the release APK — exclude it from autolinking too.
+    ...(variant.key === "development"
+      ? {}
+      : { autolinking: { exclude: ["expo-dev-client", "expo-dev-launcher"] } }),
+    extra: {
+      appVariant: variant.key,
+      eas: {
+        projectId: "e9c65825-d965-4d58-a3af-46406ee8a9ae",
+      },
+    },
+  },
+};

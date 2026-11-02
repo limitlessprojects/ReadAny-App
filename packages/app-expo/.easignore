@@ -1,0 +1,40 @@
+# EAS Build Ignore File
+# Exclude large unused modules to reduce APK size
+
+.git
+.gitignore
+.easignore
+
+# Documentation
+*.md
+LICENSE
+CHANGELOG
+
+# Development tools
+.vscode
+.idea
+.husky
+.prettierrc
+.eslintrc
+.editorconfig
+tsconfig.tsbuildinfo
+metro.cache
+
+# Test files
+__tests__
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Large unused modules in monorepo
+node_modules/onnxruntime-node
+node_modules/onnxruntime-web
+node_modules/@pagefind
+node_modules/pdfjs-dist
+node_modules/mermaid
+node_modules/lucide-react
+node_modules/react-devtools-core
+node_modules/typescript
+node_modules/esbuild
+node_modules/@biomejs

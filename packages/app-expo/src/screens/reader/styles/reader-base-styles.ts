@@ -1,0 +1,219 @@
+/**
+ * Base container + toolbar styles for ReaderScreen.
+ */
+import { StyleSheet } from "react-native";
+import {
+  type ThemeColors,
+  fontSize,
+  fontWeight,
+  radius,
+  withOpacity,
+} from "@/styles/theme";
+
+export const makeToolbarStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    // ── Base ──────────────────────────────────────────────────────────────────
+    container: { flex: 1, backgroundColor: colors.background },
+    readerStage: { flex: 1 },
+    webview: { flex: 1 },
+    loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
+    loadingText: { fontSize: fontSize.sm, color: colors.mutedForeground },
+    errorText: {
+      fontSize: fontSize.base,
+      color: colors.destructive,
+      textAlign: "center",
+      paddingHorizontal: 24,
+    },
+    backButton: {
+      marginTop: 16,
+      paddingHorizontal: 24,
+      paddingVertical: 10,
+      borderRadius: radius.lg,
+      backgroundColor: colors.primary,
+    },
+    backButtonText: {
+      fontSize: fontSize.sm,
+      fontWeight: fontWeight.medium,
+      color: colors.primaryForeground,
+    },
+    loadingOverlay: {
+      position: "absolute",
+      top: 0, left: 0, right: 0, bottom: 0,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.background,
+      zIndex: 20,
+    },
+
+    // ── Top toolbar ───────────────────────────────────────────────────────────
+    topToolbar: { position: "absolute", zIndex: 34, left: 0, right: 0, top: 0 },
+    topToolbarBar: {
+      backgroundColor: withOpacity(colors.background, 0.94),
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: withOpacity(colors.foreground, 0.1),
+    },
+    topToolbarRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    topToolbarBackBtn: {
+      width: 48, height: 48, borderRadius: 24,
+      alignItems: "center", justifyContent: "center",
+    },
+    topToolbarSideSlot: { width: 68, justifyContent: "center", alignItems: "flex-start" },
+    topToolbarSpacer: { flex: 1, minHeight: 44 },
+    topToolbarTitleWrap: {
+      flex: 1, minWidth: 0,
+      alignItems: "center", justifyContent: "center",
+      paddingHorizontal: 12,
+    },
+    topToolbarTitleText: {
+      fontSize: fontSize.sm,
+      color: colors.foreground,
+      fontWeight: fontWeight.medium,
+    },
+    topToolbarMetaWrap: { width: 60, alignItems: "flex-end", justifyContent: "center" },
+    topToolbarMetaText: {
+      fontSize: fontSize.sm,
+      color: colors.mutedForeground,
+      fontWeight: fontWeight.medium,
+    },
+    topToolbarRight: { flexDirection: "row", alignItems: "center", gap: 2 },
+    topToolbarBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+    topToolbarBtnActive: { backgroundColor: withOpacity(colors.foreground, 0.06) },
+    topToolbarProgressTrack: {
+      height: 2,
+      backgroundColor: withOpacity(colors.foreground, 0.08),
+      overflow: "hidden",
+    },
+    topToolbarProgressFill: {
+      height: "100%",
+      backgroundColor: withOpacity(colors.foreground, 0.48),
+    },
+
+    // ── Floating tools ────────────────────────────────────────────────────────
+    floatingTools: { position: "absolute", zIndex: 34, gap: 10, alignItems: "center" },
+    floatingToolBtn: {
+      width: 52, height: 52, borderRadius: 26,
+      alignItems: "center", justifyContent: "center",
+      backgroundColor: "rgba(76, 82, 94, 0.88)",
+    },
+    floatingToolBtnActive: { backgroundColor: "rgba(59, 130, 246, 0.9)" },
+
+    // ── Bottom toolbar ────────────────────────────────────────────────────────
+    bottomToolbar: { position: "absolute", bottom: 0, zIndex: 30, left: 0, right: 0 },
+    bottomToolbarGlass: {
+      backgroundColor: withOpacity(colors.background, 0.98),
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderColor: withOpacity(colors.foreground, 0.12),
+      paddingTop: 10,
+    },
+    bottomDockRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 2,
+    },
+    bottomDockBtn: {
+      flex: 1, height: 54, borderRadius: 10,
+      alignItems: "center", justifyContent: "center",
+      gap: 4, paddingTop: 4,
+    },
+    bottomDockBtnActive: { backgroundColor: withOpacity(colors.foreground, 0.06) },
+    bottomDockLabel: {
+      fontSize: fontSize.xs, lineHeight: 14,
+      color: colors.mutedForeground,
+      fontWeight: fontWeight.medium,
+    },
+    bottomDockLabelActive: { color: colors.primary },
+    bottomToolbarProgressTrack: {
+      position: "absolute", top: 0, left: 0, right: 0,
+      height: 2,
+      backgroundColor: withOpacity(colors.foreground, 0.08),
+      overflow: "hidden",
+    },
+    bottomToolbarProgressFill: {
+      height: "100%",
+      backgroundColor: withOpacity(colors.foreground, 0.48),
+      borderRadius: 999,
+    },
+    toolbarRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    toolbarBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+    toolbarBtnActive: { backgroundColor: `${colors.primary}30` },
+    toolbarBtnDisabled: { opacity: 0.4 },
+    toolbarCenter: { flex: 1, paddingHorizontal: 8, alignItems: "center" },
+    toolbarTitle: {
+      fontSize: fontSize.sm, fontWeight: fontWeight.semibold,
+      color: "#fff", letterSpacing: 0.3,
+    },
+    toolbarChapter: { fontSize: fontSize.xs, color: "rgba(255,255,255,0.5)", marginTop: 1 },
+
+    // ── Info bars + search ────────────────────────────────────────────────────
+    topInfoBar: {
+      position: "absolute", left: 0, right: 0,
+      paddingHorizontal: 18, paddingVertical: 6, gap: 8,
+    },
+    topInfoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    topInfoText: {
+      flex: 1, fontSize: fontSize.xs,
+      color: colors.mutedForeground, marginRight: 8,
+    },
+    topInfoPageText: { fontSize: fontSize.xs, color: colors.mutedForeground },
+    topInfoProgressTrack: {
+      height: 2, borderRadius: 999, overflow: "hidden",
+      backgroundColor: withOpacity(colors.foreground, 0.08),
+    },
+    topInfoProgressFill: {
+      height: "100%", borderRadius: 999,
+      backgroundColor: withOpacity(colors.foreground, 0.42),
+    },
+    bottomInfoBar: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      position: "absolute", zIndex: 24,
+    },
+    bottomInfoSide: { flexDirection: "row", alignItems: "center", gap: 6 },
+    bottomInfoText: {
+      fontSize: fontSize.xs, color: colors.mutedForeground,
+      fontVariant: ["tabular-nums"],
+    },
+    footerSliderRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    footerNavBtn: {
+      width: 36, height: 36, borderRadius: 18,
+      alignItems: "center", justifyContent: "center",
+      backgroundColor: "rgba(255,255,255,0.1)",
+    },
+    sliderWrap: { flex: 1, justifyContent: "center", paddingVertical: 4 },
+    sliderTrack: {
+      height: 3, backgroundColor: "rgba(255,255,255,0.15)",
+      borderRadius: 1.5, overflow: "hidden",
+    },
+    sliderFill: { height: "100%", backgroundColor: colors.primary, borderRadius: 1.5 },
+    thinProgressWrap: {
+      position: "absolute", left: 0, right: 0,
+      height: 2, backgroundColor: "rgba(255,255,255,0.05)", zIndex: 40,
+    },
+    thinProgressFill: { height: "100%", backgroundColor: colors.primary, opacity: 0.8 },
+
+    searchBarWrap: {
+      position: "absolute", top: 0, left: 0, right: 0,
+      backgroundColor: colors.background,
+      borderBottomWidth: 0.5, borderBottomColor: colors.border, zIndex: 40,
+    },
+    searchBarRow: {
+      flexDirection: "row", alignItems: "center",
+      gap: 4, paddingHorizontal: 12, paddingVertical: 8,
+    },
+    searchInputWrap: {
+      flex: 1, flexDirection: "row", alignItems: "center",
+      backgroundColor: colors.muted, borderRadius: radius.lg,
+      paddingHorizontal: 10, height: 36, gap: 6,
+    },
+    searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, padding: 0 },
+    searchMetaRow: { flexDirection: "row", alignItems: "center" },
+    searchCount: { fontSize: fontSize.xs, color: colors.mutedForeground },
+    searchNavBtn: {
+      width: 32, height: 32, borderRadius: radius.lg,
+      alignItems: "center", justifyContent: "center",
+    },
+  });
