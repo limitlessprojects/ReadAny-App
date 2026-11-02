@@ -1,0 +1,45 @@
+{
+  "name": "@readany/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "readany": "./dist/bin/readany.js"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "smoke:agent": "node scripts/agent-smoke.mjs",
+    "acceptance:agent": "node scripts/agent-acceptance.mjs",
+    "acceptance:assemble": "node scripts/assemble-acceptance.mjs",
+    "acceptance:desktop": "node scripts/desktop-settings-acceptance.mjs",
+    "acceptance:bundle": "node scripts/acceptance-bundle.mjs",
+    "acceptance:init": "node scripts/acceptance-init.mjs",
+    "acceptance:verify-bundle": "node scripts/verify-acceptance-bundle.mjs",
+    "acceptance:finalize": "node scripts/finalize-acceptance.mjs",
+    "acceptance:real": "pnpm build && node scripts/real-sample-acceptance.mjs",
+    "acceptance:packaged": "node scripts/packaged-platform-acceptance.mjs",
+    "acceptance:scaffold": "node scripts/scaffold-acceptance-record.mjs",
+    "acceptance:status": "node scripts/acceptance-status.mjs",
+    "acceptance:validate": "node scripts/validate-acceptance.mjs",
+    "preflight:release": "node scripts/release-preflight.mjs",
+    "dev": "tsx src/bin/readany.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@readany/core": "workspace:*",
+    "pdfjs-dist": "^5.5.207"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^12.10.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.5.2",
+    "esbuild": "^0.27.3",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.3",
+    "vitest": "^4.1.2"
+  }
+}

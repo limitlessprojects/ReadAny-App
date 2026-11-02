@@ -1,0 +1,17 @@
+name = "readany-feedback-worker"
+main = "src/index.ts"
+compatibility_date = "2026-05-08"
+
+[vars]
+GITHUB_OWNER = "codedogQBY"
+GITHUB_REPO = "ReadAny"
+# Comma-separated origins. Use "*" for public clients without credentials.
+ALLOWED_ORIGINS = "*"
+RATE_LIMIT_SUBMISSIONS_PER_DAY = "20"
+RATE_LIMIT_STATUS_PER_HOUR = "120"
+
+# Create a KV namespace and uncomment before production deploy:
+# pnpm dlx wrangler@4 kv namespace create FEEDBACK_RATE_LIMIT
+[[kv_namespaces]]
+binding = "FEEDBACK_RATE_LIMIT"
+id = "9b2e37933be24dfeb3d1d8bcbc3e181a"

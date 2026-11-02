@@ -1,0 +1,12 @@
+{
+  "name": "@readany/feedback-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "dev": "pnpm dlx wrangler@4 dev",
+    "deploy": "pnpm dlx wrangler@4 deploy",
+    "secret:token": "pnpm dlx wrangler@4 secret put GITHUB_TOKEN"
+  }
+}
